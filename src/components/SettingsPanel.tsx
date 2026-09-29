@@ -77,6 +77,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
     setModel,
     setBaseUrl,
     setMaxTokens,
+    setPetMode,
   } = useConfigStore()
 
   const [userName, setUserName] = useState('')
@@ -457,6 +458,37 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
             ? `Custom · ${config.maxTokens} tokens`
             : RESPONSE_LENGTH_OPTIONS.find((o) => o.key === maxTokensPreset(config.maxTokens))
                 ?.hint}
+        </p>
+
+        {/* ── Cat behaviour mode ──────────────────────────────────────────── */}
+        <div style={styles.divider} />
+        <label style={styles.label}>고양이 행동 모드</label>
+        <div style={styles.tokenRow}>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...((config.petMode ?? 'wanderer') === 'wanderer' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setPetMode('wanderer')}
+            title="화면 가장자리를 따라 노는 자율 배회 — 작업을 덜 가림"
+          >
+            자유 배회
+          </button>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...(config.petMode === 'buddy' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setPetMode('buddy')}
+            title="마우스 커서를 따라다님"
+          >
+            커서 추적
+          </button>
+        </div>
+        <p style={styles.tokenHint}>
+          {(config.petMode ?? 'wanderer') === 'wanderer'
+            ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
+            : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
         </p>
 
         {/* ── Automation schedules ────────────────────────────────────────── */}
