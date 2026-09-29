@@ -25,13 +25,13 @@ const RESPONSE_LENGTH_OPTIONS: {
   label: string
   hint: string
 }[] = [
-  { key: 'short', label: 'S', hint: '~1 párrafo · más rápido' },
-  { key: 'medium', label: 'M', hint: '~3 párrafos · recomendado' },
-  { key: 'long', label: 'L', hint: '~6 párrafos · puede tardar más' },
+  { key: 'short', label: 'S', hint: '~1문단 · 빠름' },
+  { key: 'medium', label: 'M', hint: '~3문단 · 추천' },
+  { key: 'long', label: 'L', hint: '~6문단 · 좀 걸릴 수 있음' },
   {
     key: 'custom',
     label: '⚙',
-    hint: `Custom · ${MAX_TOKENS_BOUNDS.min}–${MAX_TOKENS_BOUNDS.max} tokens`,
+    hint: `직접 입력 · ${MAX_TOKENS_BOUNDS.min}–${MAX_TOKENS_BOUNDS.max} 토큰`,
   },
 ]
 
@@ -52,11 +52,11 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; placeholder: string }> 
 // credentials. Gemini gets a "free" tag because aistudio offers a free tier
 // that's the lowest-friction onboarding path for non-technical users.
 const PROVIDER_HELP: Record<string, { url: string; label: string }> = {
-  anthropic: { url: 'https://console.anthropic.com/settings/keys', label: 'Obtener API key' },
-  openai: { url: 'https://platform.openai.com/api-keys', label: 'Obtener API key' },
-  gemini: { url: 'https://aistudio.google.com/apikey', label: 'Obtener API key gratis' },
-  nvidia: { url: 'https://build.nvidia.com/', label: 'Obtener API key' },
-  ollama: { url: 'https://ollama.com/download', label: 'Descargar Ollama' },
+  anthropic: { url: 'https://console.anthropic.com/settings/keys', label: 'API 키 발급받기' },
+  openai: { url: 'https://platform.openai.com/api-keys', label: 'API 키 발급받기' },
+  gemini: { url: 'https://aistudio.google.com/apikey', label: '무료 API 키 발급받기' },
+  nvidia: { url: 'https://build.nvidia.com/', label: 'API 키 발급받기' },
+  ollama: { url: 'https://ollama.com/download', label: 'Ollama 다운로드' },
   omo: { url: 'https://omo.run', label: 'omo 설치/로그인 안내' },
 }
 
@@ -290,8 +290,8 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
       <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div style={styles.header}>
-          <span style={styles.title}>⚙ Settings</span>
-          <button style={styles.closeBtn} onClick={onClose} title="Close">
+          <span style={styles.title}>⚙ 설정</span>
+          <button style={styles.closeBtn} onClick={onClose} title="닫기">
             ✕
           </button>
         </div>
@@ -305,13 +305,13 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
             ...(status === 'disconnected' ? styles.statusError : {}),
           }}
         >
-          {status === 'connected' && '🟢 IA Conectada'}
-          {status === 'untested' && '🟡 Sin verificar'}
-          {status === 'disconnected' && '🔴 IA Desconectada'}
+          {status === 'connected' && '🟢 AI 연결됨'}
+          {status === 'untested' && '🟡 미확인'}
+          {status === 'disconnected' && '🔴 AI 연결 안 됨'}
         </div>
 
         {/* ── Provider ────────────────────────────────────────────────────── */}
-        <label style={styles.label}>AI Provider</label>
+        <label style={styles.label}>AI 제공자</label>
         <select
           style={styles.select}
           value={config.provider}
@@ -320,7 +320,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           <option value="gemini">Google (Gemini)</option>
           <option value="anthropic">Anthropic (Claude)</option>
           <option value="openai">OpenAI (GPT)</option>
-          <option value="ollama">Ollama (local)</option>
+          <option value="ollama">Ollama (로컬)</option>
           <option value="nvidia">NVIDIA NIM</option>
           <option value="omo">omo (에이전트 — 브라우저·도구 사용)</option>
         </select>
@@ -328,7 +328,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Model (hidden for omo — 모델 선택은 omo가 관리) ──────────────── */}
         {!isOmo && (
           <>
-            <label style={styles.label}>Model</label>
+            <label style={styles.label}>모델</label>
             <input
               style={styles.input}
               type="text"
@@ -342,7 +342,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── API key (hidden for Ollama/omo) ──────────────────────────────── */}
         {!isOllama && !isOmo && (
           <>
-            <label style={styles.label}>API Key</label>
+            <label style={styles.label}>API 키</label>
             <div style={styles.keyRow}>
               <input
                 style={{ ...styles.input, flex: 1 }}
@@ -355,7 +355,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
               <button
                 style={styles.eyeBtn}
                 onClick={() => setShowKey((v) => !v)}
-                title={showKey ? 'Hide' : 'Show'}
+                title={showKey ? '숨기기' : '보이기'}
               >
                 {showKey ? '🙈' : '👁'}
               </button>
@@ -366,7 +366,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Ollama base URL ──────────────────────────────────────────────── */}
         {isOllama && (
           <>
-            <label style={styles.label}>Base URL</label>
+            <label style={styles.label}>서버 주소</label>
             <input
               style={styles.input}
               type="text"
@@ -389,18 +389,18 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         )}
 
         {/* ── User name ───────────────────────────────────────────────────── */}
-        <label style={styles.label}>Your Name (optional)</label>
+        <label style={styles.label}>이름 (선택)</label>
         <input
           style={styles.input}
           type="text"
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
           onBlur={handleUserNameBlur}
-          placeholder="e.g. Alex"
+          placeholder="예: 한솔"
         />
 
         {/* ── Response length ─────────────────────────────────────────────── */}
-        <label style={styles.label}>Response length</label>
+        <label style={styles.label}>답변 길이</label>
         <div style={styles.tokenRow}>
           {RESPONSE_LENGTH_OPTIONS.map(({ key, label, hint }) => {
             const active = maxTokensPreset(config.maxTokens) === key
@@ -451,13 +451,13 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
                 customInputRef.current?.blur()
               }
             }}
-            aria-label="Custom response length in tokens"
+            aria-label="답변 길이 직접 입력 (토큰)"
           />
-          <span style={styles.customUnit}>tokens</span>
+          <span style={styles.customUnit}>토큰</span>
         </div>
         <p style={styles.tokenHint}>
           {maxTokensPreset(config.maxTokens) === 'custom'
-            ? `Custom · ${config.maxTokens} tokens`
+            ? `직접 입력 · ${config.maxTokens} 토큰`
             : RESPONSE_LENGTH_OPTIONS.find((o) => o.key === maxTokensPreset(config.maxTokens))
                 ?.hint}
         </p>
@@ -632,7 +632,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           onClick={handleTest}
           disabled={testStatus === 'loading'}
         >
-          {testStatus === 'loading' ? 'Testing…' : 'Test connection'}
+          {testStatus === 'loading' ? '테스트 중…' : '연결 테스트'}
         </button>
 
         {testMsg !== '' && (
@@ -649,7 +649,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Quit ────────────────────────────────────────────────────────── */}
         <div style={styles.divider} />
         <button style={styles.quitBtn} onClick={() => invoke('quit_app')}>
-          Quit Sidecat
+          Sidecat 종료
         </button>
       </div>
     </div>
@@ -670,7 +670,7 @@ export function SettingsGear({ onClick }: GearProps) {
         e.stopPropagation()
         onClick()
       }}
-      title="Open settings"
+      title="설정 열기"
     >
       ⚙
     </button>

@@ -85,37 +85,37 @@ function ContextMenuPanel() {
         <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
           <div style={styles.header}>
             <span style={styles.title}>🐱 Sidecat</span>
-            <button style={styles.closeBtn} onClick={close} title="Close">
+            <button style={styles.closeBtn} onClick={close} title="닫기">
               ✕
             </button>
           </div>
           <div style={styles.divider} />
 
           <button style={styles.backBtn} onClick={showMenu}>
-            ← Back
+            ← 뒤로
           </button>
 
           <div style={aboutStyles.appBlock}>
             <div style={aboutStyles.appName}>Sidecat</div>
-            <div style={aboutStyles.appDesc}>Desktop AI Companion • v{__APP_VERSION__}</div>
+            <div style={aboutStyles.appDesc}>데스크톱 AI 친구 • v{__APP_VERSION__}</div>
           </div>
 
           <div style={styles.divider} />
 
           <div style={aboutStyles.row}>
-            <span style={aboutStyles.label}>Website</span>
+            <span style={aboutStyles.label}>웹사이트</span>
             <button style={aboutStyles.link} onClick={() => openUrl('https://nekoai.dev/')}>
               nekoai.dev
             </button>
           </div>
           <div style={aboutStyles.row}>
-            <span style={aboutStyles.label}>Contact</span>
+            <span style={aboutStyles.label}>연락처</span>
             <button style={aboutStyles.link} onClick={() => openUrl('mailto:hi@nekoai.dev')}>
               hi@nekoai.dev
             </button>
           </div>
           <div style={aboutStyles.row}>
-            <span style={aboutStyles.label}>Creator</span>
+            <span style={aboutStyles.label}>제작</span>
             <button
               style={aboutStyles.link}
               onClick={() => openUrl('https://naudycastellanos.com/')}
@@ -130,7 +130,7 @@ function ContextMenuPanel() {
             style={aboutStyles.starBtn}
             onClick={() => openUrl('https://github.com/nucket/nekoai')}
           >
-            ⭐ Star on GitHub
+            ⭐ GitHub에서 스타 누르기
           </button>
         </div>
       </div>
@@ -142,7 +142,7 @@ function ContextMenuPanel() {
       <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
         <div style={styles.header}>
           <span style={styles.title}>🐱 Sidecat</span>
-          <button style={styles.closeBtn} onClick={close} title="Close">
+          <button style={styles.closeBtn} onClick={close} title="닫기">
             ✕
           </button>
         </div>
@@ -155,19 +155,19 @@ function ContextMenuPanel() {
             close()
           }}
         >
-          💬 Chat
+          💬 대화
         </button>
         <button style={styles.item} onClick={openSettings}>
-          ⚙ Settings
+          ⚙ 설정
         </button>
         <button style={styles.item} onClick={openSelectPet}>
-          🐾 Select Pet
+          🐾 고양이 선택
         </button>
 
         <div style={styles.divider} />
 
         <div style={styles.modeRow}>
-          <span style={styles.modeLabel}>Mode</span>
+          <span style={styles.modeLabel}>모드</span>
           <div style={styles.modeBtns}>
             <button
               style={{
@@ -178,9 +178,9 @@ function ContextMenuPanel() {
                 setPetMode('buddy')
                 panelAction('pet-mode:buddy')
               }}
-              title="Follow mouse cursor"
+              title="마우스 커서를 따라다녀요"
             >
-              Buddy
+              추적
             </button>
             <button
               style={{
@@ -191,9 +191,9 @@ function ContextMenuPanel() {
                 setPetMode('wanderer')
                 panelAction('pet-mode:wanderer')
               }}
-              title="Wander freely"
+              title="화면 가장자리를 자유롭게 배회해요"
             >
-              Wanderer
+              배회
             </button>
           </div>
         </div>
@@ -201,7 +201,7 @@ function ContextMenuPanel() {
         <div style={styles.divider} />
 
         <div style={styles.sizeRow}>
-          <span style={styles.sizeLabel}>Size</span>
+          <span style={styles.sizeLabel}>크기</span>
           <div style={styles.sizeBtns}>
             {PET_SIZES.map(({ label, value }) => (
               <button
@@ -225,13 +225,13 @@ function ContextMenuPanel() {
         <div style={styles.divider} />
 
         <button style={styles.item} onClick={showAbout}>
-          ℹ About Sidecat
+          ℹ Sidecat 정보
         </button>
 
         <div style={styles.divider} />
 
         <button style={styles.quitItem} onClick={quit}>
-          ✕ Quit Sidecat
+          ✕ Sidecat 종료
         </button>
       </div>
     </div>

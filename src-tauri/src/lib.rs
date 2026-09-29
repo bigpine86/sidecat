@@ -690,9 +690,14 @@ pub fn run() {
             app.manage(CursorTrackerState(cursor_tracker::CursorTracker::start()));
 
             // ── Tray menu ──────────────────────────────────────────────────
-            let show_hide =
-                MenuItem::with_id(app, "show_hide", "Show/Hide Sidecat", true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let show_hide = MenuItem::with_id(
+                app,
+                "show_hide",
+                "Sidecat 보이기/숨기기",
+                true,
+                None::<&str>,
+            )?;
+            let settings = MenuItem::with_id(app, "settings", "설정", true, None::<&str>)?;
             let pet_classic =
                 MenuItem::with_id(app, "pet_classic", "Classic Neko", true, None::<&str>)?;
             let pet_ghost = MenuItem::with_id(app, "pet_ghost", "Ghost", true, None::<&str>)?;
@@ -703,7 +708,7 @@ pub fn run() {
             let pet_shiba = MenuItem::with_id(app, "pet_shiba", "Shiba", true, None::<&str>)?;
             let select_pet = Submenu::with_items(
                 app,
-                "Select Pet",
+                "고양이 선택",
                 true,
                 &[
                     &pet_classic,
@@ -717,11 +722,11 @@ pub fn run() {
             let about = MenuItem::with_id(
                 app,
                 "about",
-                &format!("About Sidecat v{}", env!("CARGO_PKG_VERSION")),
+                &format!("Sidecat 정보 v{}", env!("CARGO_PKG_VERSION")),
                 true,
                 None::<&str>,
             )?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
 
             let menu = Menu::with_items(
                 app,

@@ -335,7 +335,7 @@ export function SpeechBubble({
             ref={inputRef}
             type="text"
             className="speech-bubble__input"
-            placeholder="Say something…"
+            placeholder="뭐라도 말해줘…"
             value={inputValue}
             autoComplete="off"
             spellCheck={false}
@@ -350,7 +350,7 @@ export function SpeechBubble({
             className="speech-bubble__send"
             onClick={handleSend}
             disabled={isLoading || isTyping || !inputValue.trim()}
-            aria-label="Send message"
+            aria-label="메시지 보내기"
           >
             ↵
           </button>
