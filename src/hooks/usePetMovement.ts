@@ -385,12 +385,57 @@ export function usePetMovement({
 
             if (now >= wanderWaitUntil.current) {
               const scale = window.devicePixelRatio || 1
-              const screenW = window.screen.availWidth * scale
-              const screenH = window.screen.availHeight * scale
               const margin = windowSize * scale
-              wanderTargetRef.current = {
-                x: margin + Math.random() * (screenW - margin * 2),
-                y: margin + Math.random() * (screenH - margin * 2),
+              // Edge-biased roaming (Sidecat): ~72% of targets land in a band
+              // along one edge of the pet's current monitor, so the cat lives
+              // at the screen margins and doesn't cover the user's work. The
+              // remaining picks go anywhere — occasional centre visits keep it
+              // charming rather than annoying.
+              const mi = findMonitorIndex(centre.x, centre.y)
+              const mon = monitorBoundsRef.current[mi >= 0 ? mi : 0] ?? {
+                x: 0,
+                y: 0,
+                width: window.screen.availWidth * scale,
+                height: window.screen.availHeight * scale,
+              }
+              const spanW = Math.max(1, mon.width - margin * 2)
+              const spanH = Math.max(1, mon.height - margin * 2)
+              const band = Math.min(140 * scale, Math.min(mon.width, mon.height) / 4)
+              if (Math.random() < 0.72) {
+                const edge = Math.floor(Math.random() * 4)
+                const r1 = Math.random()
+                const r2 = Math.random()
+                switch (edge) {
+                  case 0: // top band
+                    wanderTargetRef.current = {
+                      x: mon.x + margin + r1 * spanW,
+                      y: mon.y + margin + r2 * band,
+                    }
+                    break
+                  case 1: // bottom band
+                    wanderTargetRef.current = {
+                      x: mon.x + margin + r1 * spanW,
+                      y: mon.y + mon.height - margin - r2 * band,
+                    }
+                    break
+                  case 2: // left band
+                    wanderTargetRef.current = {
+                      x: mon.x + margin + r1 * band,
+                      y: mon.y + margin + r2 * spanH,
+                    }
+                    break
+                  default: // right band
+                    wanderTargetRef.current = {
+                      x: mon.x + mon.width - margin - r1 * band,
+                      y: mon.y + margin + r2 * spanH,
+                    }
+                    break
+                }
+              } else {
+                wanderTargetRef.current = {
+                  x: mon.x + margin + Math.random() * spanW,
+                  y: mon.y + margin + Math.random() * spanH,
+                }
               }
               transition('WALKING', 1, 0)
             }
