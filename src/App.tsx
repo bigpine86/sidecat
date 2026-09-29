@@ -280,6 +280,7 @@ export default function App() {
       !notificationAlert &&
       !onboardingActive,
     mode: effectiveMode,
+    monitorScope: config.monitorScope ?? 'free',
     availableAnimations: availableAnimationsList,
     onEdgeAnimation: handleEdgeAnimation,
   })

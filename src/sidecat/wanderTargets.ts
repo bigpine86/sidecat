@@ -14,14 +14,19 @@ export interface MonBounds {
   height: number
 }
 
+// Where the cat is allowed to roam, chosen in Settings:
+//   free   — every monitor's edge is fair game
+//   single — confined to whichever monitor it currently sits on
+//   home   — treats the primary monitor as home and wanders back when away
+export type MonitorScope = 'free' | 'single' | 'home'
+
 const EDGE_BIAS = 0.72
 const EDGE_BAND_PX = 140
+// In 'home' scope the cat still gets to play away from home sometimes —
+// 25% of picks stay on the away monitor, the rest point back home.
+const HOMESICK_BIAS = 0.75
 
-export function pickWanderTarget(
-  mon: MonBounds,
-  windowSize: number,
-  scale: number
-): { x: number; y: number } {
+function pickInMon(mon: MonBounds, windowSize: number, scale: number): { x: number; y: number } {
   const margin = windowSize * scale
   const spanW = Math.max(1, mon.width - margin * 2)
   const spanH = Math.max(1, mon.height - margin * 2)
@@ -46,4 +51,20 @@ export function pickWanderTarget(
     x: mon.x + margin + Math.random() * spanW,
     y: mon.y + margin + Math.random() * spanH,
   }
+}
+
+export function pickWanderTarget(
+  mon: MonBounds,
+  windowSize: number,
+  scale: number,
+  scope: MonitorScope = 'free',
+  homeMon: MonBounds | null = null,
+  onHome = true
+): { x: number; y: number } {
+  // Homesick: on an away monitor, mostly aim at the home monitor's edge —
+  // the normal monitor-cross sequence carries the pet back there.
+  if (scope === 'home' && !onHome && homeMon && Math.random() < HOMESICK_BIAS) {
+    return pickInMon(homeMon, windowSize, scale)
+  }
+  return pickInMon(mon, windowSize, scale)
 }

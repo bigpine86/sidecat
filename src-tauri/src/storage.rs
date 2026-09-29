@@ -52,6 +52,10 @@ pub struct AIConfig {
     // 'chat' (full window) or 'bark' (one-line speech bubble) on left-click.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub click_style: Option<String>,
+    // Wanderer monitor scope: 'free' (all monitors), 'single' (current
+    // monitor only), 'home' (primary monitor is home, returns when away).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monitor_scope: Option<String>,
 }
 
 impl Default for AIConfig {
@@ -73,6 +77,7 @@ impl Default for AIConfig {
             pet_size: Some(64),
             proactive_interval_min: None,
             click_style: None,
+            monitor_scope: None,
         }
     }
 }

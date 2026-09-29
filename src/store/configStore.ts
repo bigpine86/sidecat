@@ -18,6 +18,7 @@ interface ConfigStore {
   setMaxTokens: (maxTokens: number) => Promise<void>
   setProactiveInterval: (minutes: number) => Promise<void>
   setClickStyle: (style: AIConfig['clickStyle']) => Promise<void>
+  setMonitorScope: (scope: AIConfig['monitorScope']) => Promise<void>
   applyOllamaAutoConfig: (model: string, baseUrl?: string) => Promise<void>
 }
 
@@ -117,6 +118,12 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   setClickStyle: async (clickStyle) => {
     const config = { ...get().config, clickStyle }
+    set({ config })
+    await persist(config)
+  },
+
+  setMonitorScope: async (monitorScope) => {
+    const config = { ...get().config, monitorScope }
     set({ config })
     await persist(config)
   },

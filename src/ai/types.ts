@@ -65,6 +65,10 @@ export type AIConfig = {
   // 'bark' = a small one-line speech bubble (real chat stays reachable via
   // the context menu). Default 'chat'.
   clickStyle?: 'chat' | 'bark'
+  // Wanderer roaming scope across monitors. 'free' = every monitor's edge;
+  // 'single' = confined to the monitor it sits on; 'home' = primary monitor
+  // is home — it wanders back when away. Default 'free'.
+  monitorScope?: 'free' | 'single' | 'home'
 }
 
 export type Message = {

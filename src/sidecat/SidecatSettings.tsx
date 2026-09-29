@@ -80,6 +80,7 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
     setPetMode,
     setProactiveInterval,
     setClickStyle,
+    setMonitorScope,
   } = useConfigStore()
 
   const [userName, setUserName] = useState('')
@@ -492,6 +493,51 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
             ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
             : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
         </p>
+
+        {/* ── Monitor roaming scope (wanderer only) ───────────────────────── */}
+        {(config.petMode ?? 'wanderer') === 'wanderer' && (
+          <>
+            <label style={styles.label}>모니터 활동 범위</label>
+            <div style={styles.tokenRow}>
+              {(
+                [
+                  { scope: 'free', label: '전체 모니터', title: '모든 모니터의 가장자리를 누벼요' },
+                  {
+                    scope: 'single',
+                    label: '한 화면만',
+                    title: '지금 있는 모니터 안에서만 놀아요',
+                  },
+                  {
+                    scope: 'home',
+                    label: '주 화면 복귀',
+                    title: '멀리 가도 알아서 주 모니터로 돌아와요',
+                  },
+                ] as const
+              ).map(({ scope, label, title }) => (
+                <button
+                  key={scope}
+                  style={{
+                    ...styles.tokenBtn,
+                    ...((config.monitorScope ?? 'free') === scope ? styles.tokenBtnActive : {}),
+                  }}
+                  onClick={() => void setMonitorScope(scope)}
+                  title={title}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p style={styles.tokenHint}>
+              {
+                {
+                  free: '모든 모니터의 가장자리를 누벼요 · 가끔 옆 화면으로 이사가요',
+                  single: '지금 있는 모니터 안에서만 놀아요 · 다른 화면으로 안 넘어가요',
+                  home: '놀러 갔다가도 알아서 주 모니터로 돌아와요',
+                }[config.monitorScope ?? 'free']
+              }
+            </p>
+          </>
+        )}
 
         {/* ── Proactive barks ─────────────────────────────────────────────── */}
         <label style={styles.label}>먼저 말 걸기</label>

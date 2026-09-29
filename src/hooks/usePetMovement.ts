@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow, availableMonitors } from '@tauri-apps/api/window'
+import { getCurrentWindow, availableMonitors, primaryMonitor } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 // Sidecat zone import — the wander-target policy is ours, this file is the seam.
 import { pickWanderTarget } from '../sidecat/wanderTargets'
+import type { MonitorScope, MonBounds } from '../sidecat/wanderTargets'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface UsePetMovementOptions {
   windowSize?: number
   enabled?: boolean
   mode?: 'buddy' | 'wanderer'
+  /** Sidecat: which monitors the wanderer may roam ('free' | 'single' | 'home'). */
+  monitorScope?: MonitorScope
   availableAnimations?: string[]
   /** Called by the edge state machine when an animation override should play
    *  for `durationMs` while the pet is frozen at a monitor boundary. */
@@ -121,6 +124,7 @@ export function usePetMovement({
   windowSize = 128,
   enabled = true,
   mode = 'buddy',
+  monitorScope = 'free',
   availableAnimations = [],
   onEdgeAnimation,
 }: UsePetMovementOptions = {}): UsePetMovementResult {
@@ -164,6 +168,7 @@ export function usePetMovement({
     height: number
   }
   const monitorBoundsRef = useRef<MonitorBounds[]>([])
+  const homeMonRef = useRef<MonBounds | null>(null)
   const prevMonitorIndexRef = useRef<number>(-1)
   const edgeCooldownRef = useRef(0)
   const edgePauseUntilRef = useRef(0)
@@ -219,6 +224,15 @@ export function usePetMovement({
             height: m.size.height,
           }))
         }
+        const primary = await primaryMonitor()
+        homeMonRef.current = primary
+          ? {
+              x: primary.position.x,
+              y: primary.position.y,
+              width: primary.size.width,
+              height: primary.size.height,
+            }
+          : null
       } catch {
         monitorBoundsRef.current = []
       }
@@ -397,7 +411,16 @@ export function usePetMovement({
                 width: window.screen.availWidth * scale,
                 height: window.screen.availHeight * scale,
               }
-              wanderTargetRef.current = pickWanderTarget(mon, windowSize, scale)
+              const home = homeMonRef.current
+              const onHome = !home || (mon.x === home.x && mon.y === home.y)
+              wanderTargetRef.current = pickWanderTarget(
+                mon,
+                windowSize,
+                scale,
+                monitorScope,
+                home,
+                onHome
+              )
               transition('WALKING', 1, 0)
             }
             break
@@ -435,6 +458,34 @@ export function usePetMovement({
             const intStepY = Math.trunc(moveAccumY.current)
 
             if (intStepX !== 0 || intStepY !== 0) {
+              // Sidecat 'single' scope: never let the sprite leave the current
+              // monitor — touch the wall, then turn toward a fresh in-monitor
+              // target. (Wanderer has no scratch sequence; that lives in the
+              // buddy branch below.)
+              if (monitorScope === 'single' && monitorBoundsRef.current.length > 0) {
+                const cmi = findMonitorIndex(centre.x, centre.y)
+                const cmon = monitorBoundsRef.current[cmi >= 0 ? cmi : 0]
+                if (
+                  cmon &&
+                  getBoundingBoxEdgeHit(
+                    winPos.x + intStepX,
+                    winPos.y + intStepY,
+                    windowSize,
+                    cmon
+                  ) !== null
+                ) {
+                  wanderTargetRef.current = pickWanderTarget(
+                    cmon,
+                    windowSize,
+                    window.devicePixelRatio || 1,
+                    'free'
+                  )
+                  moveAccumX.current = 0
+                  moveAccumY.current = 0
+                  break
+                }
+              }
+
               moveAccumX.current -= intStepX
               moveAccumY.current -= intStepY
 
@@ -646,6 +697,7 @@ export function usePetMovement({
     windowSize,
     halfSize,
     mode,
+    monitorScope,
     transition,
     setWalkDir,
     setIdleAnim,
