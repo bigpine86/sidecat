@@ -554,7 +554,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Quit ────────────────────────────────────────────────────────── */}
         <div style={styles.divider} />
         <button style={styles.quitBtn} onClick={() => invoke('quit_app')}>
-          Quit NekoAI
+          Quit Sidecat
         </button>
       </div>
     </div>

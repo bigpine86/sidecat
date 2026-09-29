@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "nekoai",
+  "productName": "Sidecat",
   "version": "0.3.8",
-  "identifier": "com.nekoai.app",
+  "identifier": "com.sidecat.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "NekoAI",
+        "title": "Sidecat",
         "width": 32,
         "height": 32,
         "resizable": false,
@@ -31,7 +31,7 @@
       },
       {
         "label": "house",
-        "title": "Neko House",
+        "title": "Sidecat House",
         "width": 64,
         "height": 64,
         "resizable": false,

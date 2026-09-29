@@ -259,7 +259,7 @@ async fn open_panel_window(
     let url = format!("index.html#{}", route);
     let builder =
         tauri::WebviewWindowBuilder::new(&app, "panel", tauri::WebviewUrl::App(url.into()))
-            .title("NekoAI Panel")
+            .title("Sidecat Panel")
             .inner_size(width, height)
             .position(x, y)
             .decorations(false)
@@ -689,7 +689,7 @@ pub fn run() {
 
             // ── Tray menu ──────────────────────────────────────────────────
             let show_hide =
-                MenuItem::with_id(app, "show_hide", "Show/Hide NekoAI", true, None::<&str>)?;
+                MenuItem::with_id(app, "show_hide", "Show/Hide Sidecat", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let pet_classic =
                 MenuItem::with_id(app, "pet_classic", "Classic Neko", true, None::<&str>)?;
@@ -715,7 +715,7 @@ pub fn run() {
             let about = MenuItem::with_id(
                 app,
                 "about",
-                &format!("About NekoAI v{}", env!("CARGO_PKG_VERSION")),
+                &format!("About Sidecat v{}", env!("CARGO_PKG_VERSION")),
                 true,
                 None::<&str>,
             )?;
@@ -741,7 +741,7 @@ pub fn run() {
 
             TrayIconBuilder::new()
                 .icon(tray_icon)
-                .tooltip("NekoAI")
+                .tooltip("Sidecat")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {

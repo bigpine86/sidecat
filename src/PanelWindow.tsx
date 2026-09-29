@@ -84,7 +84,7 @@ function ContextMenuPanel() {
       <div style={{ ...styles.root, height: ABOUT_H }} onClick={close}>
         <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
           <div style={styles.header}>
-            <span style={styles.title}>🐱 NekoAI</span>
+            <span style={styles.title}>🐱 Sidecat</span>
             <button style={styles.closeBtn} onClick={close} title="Close">
               ✕
             </button>
@@ -96,7 +96,7 @@ function ContextMenuPanel() {
           </button>
 
           <div style={aboutStyles.appBlock}>
-            <div style={aboutStyles.appName}>NekoAI</div>
+            <div style={aboutStyles.appName}>Sidecat</div>
             <div style={aboutStyles.appDesc}>Desktop AI Companion • v{__APP_VERSION__}</div>
           </div>
 
@@ -141,7 +141,7 @@ function ContextMenuPanel() {
     <div style={styles.root} onClick={close}>
       <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
         <div style={styles.header}>
-          <span style={styles.title}>🐱 NekoAI</span>
+          <span style={styles.title}>🐱 Sidecat</span>
           <button style={styles.closeBtn} onClick={close} title="Close">
             ✕
           </button>
@@ -216,13 +216,13 @@ function ContextMenuPanel() {
         <div style={styles.divider} />
 
         <button style={styles.item} onClick={showAbout}>
-          ℹ About NekoAI
+          ℹ About Sidecat
         </button>
 
         <div style={styles.divider} />
 
         <button style={styles.quitItem} onClick={quit}>
-          ✕ Quit NekoAI
+          ✕ Quit Sidecat
         </button>
       </div>
     </div>

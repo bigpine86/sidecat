@@ -71,7 +71,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'NekoAI ${{ github.ref_name }}'
+          releaseName: 'Sidecat ${{ github.ref_name }}'
           releaseDraft: false
           prerelease: false
           generateReleaseNotes: true
@@ -85,10 +85,10 @@ jobs:
         run: |
           $pkg     = Get-Content package.json -Raw | ConvertFrom-Json
           $version = $pkg.version
-          $zipName = "nekoai-v$version-portable-windows-x64.zip"
+          $zipName = "sidecat-v$version-portable-windows-x64.zip"
 
           New-Item -ItemType Directory dist-portable | Out-Null
-          Copy-Item "src-tauri/target/release/nekoai.exe" "dist-portable/nekoai.exe"
+          Copy-Item "src-tauri/target/release/Sidecat.exe" "dist-portable/Sidecat.exe"
           New-Item -ItemType File "dist-portable/portable" | Out-Null
           Compress-Archive -Path "dist-portable/*" -DestinationPath $zipName -Force
           Remove-Item dist-portable -Recurse -Force

@@ -103,7 +103,7 @@ pub fn config_path() -> PathBuf {
     let base = std::env::var("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| home_dir().join(".config"));
-    base.join("nekoai").join("config.toml")
+    base.join("sidecat").join("config.toml")
 }
 
 pub fn db_path() -> PathBuf {
@@ -113,7 +113,7 @@ pub fn db_path() -> PathBuf {
     let base = std::env::var("XDG_DATA_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| home_dir().join(".local").join("share"));
-    base.join("nekoai").join("memory.db")
+    base.join("sidecat").join("memory.db")
 }
 
 // ─── Config (TOML) ────────────────────────────────────────────────────────────

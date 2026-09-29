@@ -132,7 +132,7 @@ export function ContextMenu({ isOpen, onClose, onSettings, onSelectPet }: Props)
       <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div style={styles.header}>
-          <span style={styles.title}>🐱 NekoAI</span>
+          <span style={styles.title}>🐱 Sidecat</span>
           <button style={styles.closeBtn} onClick={onClose} title="Close">
             ✕
           </button>
@@ -175,7 +175,7 @@ export function ContextMenu({ isOpen, onClose, onSettings, onSelectPet }: Props)
 
         {/* ── Quit ────────────────────────────────────────────────────────── */}
         <button style={styles.quitItem} onClick={() => invoke('quit_app')}>
-          ✕ Quit NekoAI
+          ✕ Quit Sidecat
         </button>
       </div>
     </div>
