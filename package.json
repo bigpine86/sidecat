@@ -50,7 +50,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.0",
