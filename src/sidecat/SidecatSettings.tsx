@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
-import { PhysicalPosition } from '@tauri-apps/api/dpi'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { PhysicalPosition, LogicalPosition } from '@tauri-apps/api/dpi'
+import { cursorLogicalPoint } from './screenPoint'
 import { useConfigStore } from '../store/configStore'
 import { createAIProvider, buildContextBlock } from '../ai'
 import {
@@ -150,37 +151,27 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
 
     async function expand() {
       try {
-        const [pos, monitor, cursor] = await Promise.all([
-          win.outerPosition(),
-          currentMonitor(),
-          invoke<{ x: number; y: number }>('get_cursor_pos'),
-        ])
+        const [pos, cur] = await Promise.all([win.outerPosition(), cursorLogicalPoint()])
         if (cancelled) return
         setSavedPos({ x: pos.x, y: pos.y })
 
-        // Physical bounds of the active monitor
-        const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
-        const monX = monitor?.position.x ?? 0
-        const monY = monitor?.position.y ?? 0
-        const monW = monitor?.size.width ?? window.screen.availWidth * scale
-        const monH = monitor?.size.height ?? window.screen.availHeight * scale
+        // Quadrant + clamp in global logical points on the monitor that
+        // actually holds the cursor (see screenPoint.ts for why physical
+        // pixels misplace the panel on mixed-DPI setups).
+        const { mon } = cur
+        const openBelow = cur.y - mon.y < mon.h / 2
+        const openRight = cur.x - mon.x < mon.w / 2
 
-        // Panel physical size
-        const panelPhysW = PANEL_W * scale
-        const panelPhysH = PANEL_H * scale
+        const x = Math.max(
+          mon.x,
+          Math.min(cur.x + (openRight ? 0 : -PANEL_W), mon.x + mon.w - PANEL_W)
+        )
+        const y = Math.max(
+          mon.y,
+          Math.min(cur.y + (openBelow ? 0 : -PANEL_H), mon.y + mon.h - PANEL_H)
+        )
 
-        // Quadrant relative to the current monitor
-        const openBelow = cursor.y - monY < monH / 2
-        const openRight = cursor.x - monX < monW / 2
-
-        let x = cursor.x + (openRight ? 0 : -panelPhysW)
-        let y = cursor.y + (openBelow ? 0 : -panelPhysH)
-
-        // Clamp inside the monitor
-        x = Math.max(monX, Math.min(x, monX + monW - panelPhysW))
-        y = Math.max(monY, Math.min(y, monY + monH - panelPhysH))
-
-        await win.setPosition(new PhysicalPosition(Math.round(x), Math.round(y)))
+        await win.setPosition(new LogicalPosition(Math.round(x), Math.round(y)))
         await invoke('resize_window', { width: PANEL_W, height: PANEL_H })
       } catch (err) {
         console.error('[SettingsPanel] expand error:', err)

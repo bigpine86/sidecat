@@ -11,6 +11,7 @@ import { SpeechBubble, type AnnouncementContent, type Message } from './componen
 import { SidecatSettings } from './sidecat/SidecatSettings'
 import { beginCatGrab } from './sidecat/catGrab'
 import { proactiveBark } from './sidecat/proactiveBark'
+import { cursorLogicalPoint } from './sidecat/screenPoint'
 import { PetSelector } from './components/PetSelector'
 import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
@@ -974,35 +975,23 @@ export default function App() {
       const MENU_W = 190
       const MENU_H = 260
       try {
-        const [cursor, monitor] = await Promise.all([
-          invoke<{ x: number; y: number }>('get_cursor_pos'),
-          currentMonitor(),
-        ])
+        // Sidecat seam: resolve cursor + its monitor in global logical points
+        // (screenPoint.ts — mixed-DPI physical math clipped/misplaced menus).
+        const cur = await cursorLogicalPoint()
+        const { mon } = cur
 
-        // Physical bounds of the active monitor (fall back to primary-screen guess)
-        const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
-        const monX = monitor?.position.x ?? 0
-        const monY = monitor?.position.y ?? 0
-        const monW = monitor?.size.width ?? window.screen.availWidth * scale
-        const monH = monitor?.size.height ?? window.screen.availHeight * scale
+        const openBelow = cur.y - mon.y < mon.h / 2
+        const openRight = cur.x - mon.x < mon.w / 2
 
-        // Menu size in physical pixels
-        const menuPhysW = MENU_W * scale
-        const menuPhysH = MENU_H * scale
-
-        // Quadrant relative to the current monitor
-        const openBelow = cursor.y - monY < monH / 2
-        const openRight = cursor.x - monX < monW / 2
-
-        // Anchor position (physical) then clamp inside the monitor
-        let x = cursor.x + (openRight ? 0 : -menuPhysW)
-        let y = cursor.y + (openBelow ? 0 : -menuPhysH)
-        x = Math.max(monX, Math.min(x, monX + monW - menuPhysW))
-        y = Math.max(monY, Math.min(y, monY + monH - menuPhysH))
+        let x = cur.x + (openRight ? 0 : -MENU_W)
+        let y = cur.y + (openBelow ? 0 : -MENU_H)
+        x = Math.max(mon.x, Math.min(x, mon.x + mon.w - MENU_W))
+        y = Math.max(mon.y, Math.min(y, mon.y + mon.h - MENU_H))
 
         await invoke('open_panel_window', {
-          x, // physical
-          y, // physical
+          // open_panel_window consumes global logical points (see lib.rs).
+          x,
+          y,
           width: MENU_W, // logical
           height: MENU_H, // logical
           route: 'context-menu',

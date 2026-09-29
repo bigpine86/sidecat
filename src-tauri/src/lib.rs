@@ -242,10 +242,13 @@ async fn open_panel_window(
     route: String,
 ) -> Result<(), String> {
     // If an existing panel window is around, reposition + resize and show it.
+    // Positions are global LOGICAL points — physical pixels are ambiguous on
+    // mixed-DPI multi-monitor setups (the panel could land off-screen or
+    // clipped on a monitor with a different scale factor).
     if let Some(win) = app.get_webview_window("panel") {
         win.set_size(tauri::LogicalSize::new(width, height))
             .map_err(|e| e.to_string())?;
-        win.set_position(tauri::PhysicalPosition::new(x as i32, y as i32))
+        win.set_position(tauri::LogicalPosition::new(x, y))
             .map_err(|e| e.to_string())?;
         // Navigate in case the requested route changed
         let url = format!("index.html#{}", route);
@@ -261,6 +264,8 @@ async fn open_panel_window(
         tauri::WebviewWindowBuilder::new(&app, "panel", tauri::WebviewUrl::App(url.into()))
             .title("Sidecat Panel")
             .inner_size(width, height)
+            // x/y arrive as global logical points (see note above);
+            // WebviewWindowBuilder::position is already logical.
             .position(x, y)
             .decorations(false)
             .transparent(true)
