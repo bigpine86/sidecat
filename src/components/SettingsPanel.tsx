@@ -78,6 +78,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
     setBaseUrl,
     setMaxTokens,
     setPetMode,
+    setProactiveInterval,
   } = useConfigStore()
 
   const [userName, setUserName] = useState('')
@@ -489,6 +490,37 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           {(config.petMode ?? 'wanderer') === 'wanderer'
             ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
             : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
+        </p>
+
+        {/* ── Proactive barks ─────────────────────────────────────────────── */}
+        <label style={styles.label}>먼저 말 걸기</label>
+        <div style={styles.tokenRow}>
+          {[
+            { min: 0, label: '끄기' },
+            { min: 10, label: '10분' },
+            { min: 30, label: '30분' },
+            { min: 60, label: '1시간' },
+          ].map(({ min, label }) => {
+            const active = (config.proactiveIntervalMin ?? 0) === min
+            return (
+              <button
+                key={min}
+                style={{
+                  ...styles.tokenBtn,
+                  ...(active ? styles.tokenBtnActive : {}),
+                }}
+                onClick={() => void setProactiveInterval(min)}
+                title={min === 0 ? '먼저 말 걸지 않음' : `약 ${label}마다 한마디씩`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <p style={styles.tokenHint}>
+          {(config.proactiveIntervalMin ?? 0) > 0
+            ? '가만히 있으면 고양이가 화면을 힐끔 보고 먼저 한마디 해요 · 자는 중이나 대화 중엔 조용'
+            : '사용자가 먼저 말 걸 때까지 조용히 놀아요'}
         </p>
 
         {/* ── Automation schedules ────────────────────────────────────────── */}

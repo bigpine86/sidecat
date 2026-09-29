@@ -10,7 +10,7 @@ import { usePetMovement } from './hooks/usePetMovement'
 import { SpeechBubble, type AnnouncementContent, type Message } from './components/SpeechBubble'
 import { SettingsPanel } from './components/SettingsPanel'
 import { PetSelector } from './components/PetSelector'
-import { useConfigStore } from './store/configStore'
+import { useConfigStore, isConfigured } from './store/configStore'
 import { useAppStore } from './store'
 import { createAIProvider, buildContextBlock } from './ai'
 import { loadFacts, extractAndSaveFacts } from './ai/memory'
@@ -586,6 +586,66 @@ export default function App() {
   useEffect(() => {
     if (!bubbleOpen) tryFlushAnnounce()
   }, [bubbleOpen, tryFlushAnnounce])
+
+  // ── Proactive barks: the cat talks first ─────────────────────────────────
+  // proactiveIntervalMin drives a slow jittered timer; each tick nudges the
+  // agent with a "speak first" prompt and surfaces the reply through the same
+  // announcement bubble as scheduled tasks. The cat stays quiet while the UI
+  // is busy, while it's being dragged, or while it's asleep.
+  const proactiveBark = useCallback(async (): Promise<string | null> => {
+    const { config: cfg } = useConfigStore.getState()
+    if (!isConfigured(cfg)) return null
+    const [facts] = await Promise.all([loadFacts()])
+    const mood = useAppStore.getState().mood
+    const systemPrompt =
+      buildContextBlock('Sidecat', facts, mood) +
+      '\n\n[자발 발화] 사용자가 먼저 말을 걸지 않았다. 네가 먼저 말풍선에 띄울 한마디를 한다 — 심심하다거나 뭐 하는지 묻거나 놀아달라거나. 순수 텍스트 1~2문장만.'
+    await invoke('save_message', { role: 'user', content: '[먼저 말 걸기]' }).catch(() => {})
+    const provider = createAIProvider(cfg)
+    const reply = await provider.sendMessage(
+      [{ role: 'user', content: '[먼저 말 걸기]' }],
+      systemPrompt
+    )
+    await invoke('save_message', { role: 'assistant', content: reply }).catch(() => {})
+    return reply
+  }, [])
+
+  const petCalmRef = useRef(true)
+  useEffect(() => {
+    petCalmRef.current = !petDragging && petState !== 'SLEEPING'
+  }, [petDragging, petState])
+
+  useEffect(() => {
+    if (!isLoaded) return
+    const minutes = config.proactiveIntervalMin ?? 0
+    if (minutes <= 0) return
+    let cancelled = false
+    let timer = 0
+    const tick = async () => {
+      if (cancelled) return
+      if (!uiBusyRef.current && petCalmRef.current) {
+        try {
+          const text = await proactiveBark()
+          if (text) {
+            announceQueueRef.current.push({
+              text,
+              actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+            })
+            tryFlushAnnounce()
+          }
+        } catch (e) {
+          console.error('[Sidecat] proactive bark failed:', e)
+        }
+      }
+      // ±30% jitter keeps the rhythm organic instead of metronomic.
+      timer = window.setTimeout(tick, minutes * 60_000 * (0.7 + Math.random() * 0.6))
+    }
+    timer = window.setTimeout(tick, minutes * 60_000 * (0.7 + Math.random() * 0.6))
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [isLoaded, config.proactiveIntervalMin, proactiveBark, dismissAnnouncement, tryFlushAnnounce])
 
   // ── Onboarding sequence ────────────────────────────────────────────────────
   // Cursor following stays paused via `onboardingActive` (see usePetMovement

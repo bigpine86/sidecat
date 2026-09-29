@@ -58,6 +58,9 @@ export type AIConfig = {
   // Stored as a number (not a preset key) so future custom values fit without
   // a schema change.
   maxTokens?: number
+  // Minutes between proactive barks — the cat glances at the screen and says
+  // something first. 0/undefined = never.
+  proactiveIntervalMin?: number
 }
 
 export type Message = {

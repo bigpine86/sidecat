@@ -46,6 +46,9 @@ pub struct AIConfig {
     // config, so a save/load round-trip dropped it; declare it here too.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pet_size: Option<u32>,
+    // Minutes between proactive barks (cat talks first). `None`/0 = off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proactive_interval_min: Option<u32>,
 }
 
 impl Default for AIConfig {
@@ -65,6 +68,7 @@ impl Default for AIConfig {
             ollama_auto_detected: None,
             max_tokens: None,
             pet_size: Some(64),
+            proactive_interval_min: None,
         }
     }
 }

@@ -16,6 +16,7 @@ interface ConfigStore {
   setOnboardingCompleted: (completed: boolean) => Promise<void>
   setOllamaAutoDetected: (detected: boolean) => Promise<void>
   setMaxTokens: (maxTokens: number) => Promise<void>
+  setProactiveInterval: (minutes: number) => Promise<void>
   applyOllamaAutoConfig: (model: string, baseUrl?: string) => Promise<void>
 }
 
@@ -103,6 +104,12 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   setMaxTokens: async (maxTokens) => {
     const config = { ...get().config, maxTokens }
+    set({ config })
+    await persist(config)
+  },
+
+  setProactiveInterval: async (proactiveIntervalMin) => {
+    const config = { ...get().config, proactiveIntervalMin }
     set({ config })
     await persist(config)
   },
