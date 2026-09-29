@@ -128,6 +128,10 @@ export default function App() {
   const { config, isLoaded, loadConfig, setActivePetId } = useConfigStore()
   const spriteSize = config.petSize ?? 64
   const spriteInsetX = Math.round((WIN_OPEN_W - spriteSize) / 2)
+  // The expanded window must grow with the sprite: the bubble anchors at
+  // spriteSize+14 from the bottom, so a tall sprite pushes the bubble past
+  // the top edge of a fixed 380px window and clips it.
+  const openWinH = WIN_OPEN_H + Math.max(0, spriteSize - 32)
 
   useEffect(() => {
     if (!isLoaded) loadConfig()
@@ -455,9 +459,11 @@ export default function App() {
     const monW = monitor?.size.width ?? window.screen.availWidth * scale
     const monH = monitor?.size.height ?? window.screen.availHeight * scale
 
-    // Physical sizes
+    // Physical sizes — window height grows with the sprite so the bubble
+    // (anchored spriteSize+14 up from the bottom edge) never overflows the top.
+    const openH = WIN_OPEN_H + Math.max(0, sz - 32)
     const openPhysW = WIN_OPEN_W * scale
-    const openPhysH = WIN_OPEN_H * scale
+    const openPhysH = openH * scale
     const insetPhysX = Math.round(((WIN_OPEN_W - sz) / 2) * scale)
 
     // Bubble above or below based on position within the active monitor
@@ -470,14 +476,14 @@ export default function App() {
 
     // Expanded window position: keep sprite visually in place
     let newX = pos.x - insetPhysX
-    let newY = side === 'above' ? pos.y - Math.round((WIN_OPEN_H - sz) * scale) : pos.y
+    let newY = side === 'above' ? pos.y - Math.round((openH - sz) * scale) : pos.y
 
     // Clamp inside the active monitor
     newX = Math.max(monX, Math.min(newX, monX + monW - openPhysW))
     newY = Math.max(monY, Math.min(newY, monY + monH - openPhysH))
 
     await win.setPosition(new PhysicalPosition(Math.round(newX), Math.round(newY)))
-    await invoke('resize_window', { width: WIN_OPEN_W, height: WIN_OPEN_H })
+    await invoke('resize_window', { width: WIN_OPEN_W, height: openH })
     // Note: clearing the GTK shape mask is centralised in the expanded-state
     // useEffect above so all three expand paths (bubble, settings, pet
     // selector) share the same lifecycle.
@@ -895,11 +901,11 @@ export default function App() {
         const [pos, monitor] = await Promise.all([win.outerPosition(), currentMonitor()])
         const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
         const sz = useConfigStore.getState().config.petSize ?? 64
+        const openH = WIN_OPEN_H + Math.max(0, sz - 32)
         const insetPhysX = Math.round(((WIN_OPEN_W - sz) / 2) * scale)
         // Sprite physical top-left within the expanded window
         const spritePhysX = pos.x + insetPhysX
-        const spritePhysY =
-          bubblePos === 'above' ? pos.y + Math.round((WIN_OPEN_H - sz) * scale) : pos.y
+        const spritePhysY = bubblePos === 'above' ? pos.y + Math.round((openH - sz) * scale) : pos.y
         savedPos.current = { x: spritePhysX, y: spritePhysY }
         setDragging(false)
         document.removeEventListener('mouseup', resume)
@@ -916,7 +922,7 @@ export default function App() {
         width: spriteSize,
         height: spriteSize,
         left: spriteInsetX,
-        top: bubblePos === 'above' ? WIN_OPEN_H - spriteSize : 0,
+        top: bubblePos === 'above' ? openWinH - spriteSize : 0,
       } as React.CSSProperties)
     : undefined
 
@@ -926,8 +932,8 @@ export default function App() {
   // chroma-key body. Windows/macOS keep the window natively transparent.
   const containerStyle: React.CSSProperties | undefined = bubbleOpen
     ? IS_LINUX
-      ? { background: 'rgb(28, 28, 32)' }
-      : undefined
+      ? { background: 'rgb(28, 28, 32)', height: openWinH }
+      : { height: openWinH }
     : { width: spriteSize, height: spriteSize }
 
   return (
