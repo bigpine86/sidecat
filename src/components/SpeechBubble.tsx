@@ -251,9 +251,9 @@ export function SpeechBubble({
 
   // Anchor the bubble just off the sprite edge: `bottom` when it sits above the
   // sprite (tail points down), `top` when below. Offset = sprite size + tail
-  // height (11px) + a small visual gap, so the tail meets the sprite at any
-  // configured pet size instead of floating at a fixed window offset.
-  const anchorOffset = spriteSize + 11 + 3
+  // height (11px) + a 1px kiss gap, so the tail nearly touches the sprite at
+  // any configured pet size instead of floating at a fixed window offset.
+  const anchorOffset = spriteSize + 11 + 1
   const anchorStyle: CSSProperties =
     position === 'above' ? { bottom: anchorOffset } : { top: anchorOffset }
 
