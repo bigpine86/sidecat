@@ -1,5 +1,5 @@
 {
-  "name": "nekoai",
+  "name": "sidecat",
   "private": true,
   "version": "0.3.8",
   "homepage": "https://nekoai.dev/",
@@ -46,6 +46,7 @@
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-opener": "^2.6.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -209,7 +209,8 @@
         { "path": "$APPCONFIG/**" },
         { "path": "$APPDATA/**" },
         { "path": "$HOME/.sidecat" },
-        { "path": "$HOME/.sidecat/**" }
+        { "path": "$HOME/.sidecat/**" },
+        { "path": "$HOME/.omo/agent/auth.json" }
       ]
     },
     {
@@ -226,7 +227,8 @@
         { "path": "$RESOURCE/**" },
         { "path": "$APPDATA/**" },
         { "path": "$HOME/.sidecat" },
-        { "path": "$HOME/.sidecat/**" }
+        { "path": "$HOME/.sidecat/**" },
+        { "path": "$HOME/.omo/agent/auth.json" }
       ]
     }
   ]

@@ -3,6 +3,7 @@ import { getCurrentWindow, currentMonitor } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { PetRenderer } from './pets/PetRenderer'
 import type { PetDefinition } from './types/pet'
 import { usePetMovement } from './hooks/usePetMovement'
@@ -17,7 +18,7 @@ import { startScheduler, type Schedule } from './automation/scheduler'
 import { useDesktopContext } from './hooks/useDesktopContext'
 import { useMoodEngine } from './hooks/useMoodEngine'
 import { useIdleSequencer } from './hooks/useIdleSequencer'
-import { useOnboarding } from './hooks/useOnboarding'
+import { useOnboarding, type OmoStatus } from './hooks/useOnboarding'
 import { IS_LINUX } from './utils/platform'
 import './App.css'
 
@@ -404,7 +405,7 @@ export default function App() {
       ])
 
       const mood = useAppStore.getState().mood
-      const systemPrompt = buildContextBlock('NekoAI', facts, mood)
+      const systemPrompt = buildContextBlock('Sidecat', facts, mood)
       const provider = createAIProvider(cfg)
       const messages = history.map((m) => ({
         role: m.role as 'user' | 'assistant',
@@ -527,7 +528,7 @@ export default function App() {
     const [facts] = await Promise.all([loadFacts()])
     const mood = useAppStore.getState().mood
     const systemPrompt =
-      buildContextBlock('NekoAI', facts, mood) +
+      buildContextBlock('Sidecat', facts, mood) +
       '\n\n[자동 작업] 예약된 자동 작업을 실행 중이다. 가진 도구로 끝까지 수행하고, 결과를 1~2문장으로 짧게 보고하라. 산출물이 필요하면 ~/.sidecat/runs/ 아래에 파일로 저장하라.'
     const provider = createAIProvider(cfg)
     const reply = await provider.sendMessage(
@@ -592,54 +593,114 @@ export default function App() {
     [closeBubble, onboarding]
   )
 
+  // ── omo setup-wizard announcements ───────────────────────────────────────
+  // Shown while provider is 'omo' but the binary or auth is missing. The
+  // recheck button re-probes and swaps this bubble's content in place.
+  const onboardSlidePlayedRef = useRef(false)
+
+  const omoAnnounce = (st: OmoStatus, prefix = ''): AnnouncementContent => {
+    const recheck = () =>
+      void (async () => {
+        const next = await onboarding.recheck()
+        if (next !== 'ready') {
+          setOnboardingAnnouncement(omoAnnounce(next, '아직 안 잡혀. '))
+        }
+        // 'ready' → state change → the effect rebuilds the bubble itself.
+      })()
+
+    if (st === 'missing') {
+      return {
+        text: `${prefix}내 뇌가 될 omo가 아직 없어. 설치해주면 난 인터넷도 보고 파일도 만질 수 있어.`,
+        actions: [
+          {
+            label: '설치 방법 보기',
+            primary: true,
+            onClick: () => void openUrl('https://omo.dev/docs/install'),
+          },
+          { label: '설치했어, 다시 확인', onClick: recheck },
+          { label: '나중에', onClick: () => closeOnboardingBubble(false) },
+        ],
+      }
+    }
+    if (st === 'no_auth') {
+      return {
+        text: `${prefix}omo는 있는데 로그인이 안 됐어. 터미널에서 omo 실행 → /login으로 ChatGPT나 Claude를 연결해줘.`,
+        actions: [
+          { label: '로그인했어, 다시 확인', primary: true, onClick: recheck },
+          { label: '설정 열기', onClick: () => closeOnboardingBubble(true) },
+          { label: '나중에', onClick: () => closeOnboardingBubble(false) },
+        ],
+      }
+    }
+    return {
+      text: `${prefix}준비 끝! 난 omo로 생각하고 움직여. 클릭하면 대화, 우클릭하면 메뉴야. 물어봐!`,
+      actions: [{ label: '알았어', primary: true, onClick: () => closeOnboardingBubble(false) }],
+    }
+  }
+
+  const SHOWABLE_STATES = ['needs_setup', 'ollama_found', 'omo_missing', 'omo_no_auth', 'omo_ready']
+
   useEffect(() => {
-    if (onboarding.state !== 'needs_setup' && onboarding.state !== 'ollama_found') return
+    if (!SHOWABLE_STATES.includes(onboarding.state)) return
 
     let cancelled = false
+    const isOmoState = onboarding.state.startsWith('omo_')
 
     void (async () => {
       try {
-        const monitor = await currentMonitor()
-        const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
-        const monX = monitor?.position.x ?? 0
-        const monY = monitor?.position.y ?? 0
-        const monW = monitor?.size.width ?? window.screen.width * scale
-        const monH = monitor?.size.height ?? window.screen.height * scale
-        const sz = useConfigStore.getState().config.petSize ?? 32
+        // Slide the pet to centre-screen — only the first time any onboarding
+        // state is shown; later transitions (e.g. omo recheck) keep the pet.
+        if (!onboardSlidePlayedRef.current) {
+          onboardSlidePlayedRef.current = true
+          const monitor = await currentMonitor()
+          const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
+          const monX = monitor?.position.x ?? 0
+          const monY = monitor?.position.y ?? 0
+          const monW = monitor?.size.width ?? window.screen.width * scale
+          const monH = monitor?.size.height ?? window.screen.height * scale
+          const sz = useConfigStore.getState().config.petSize ?? 32
 
-        // Same approximations the notification handler uses.
-        const taskbarH = 48 * scale
-        const houseW = 64 * scale
-        const bottomY = Math.round(monY + monH - taskbarH - sz * scale)
-        // Pet starts immediately to the left of the house with a small gap.
-        const startX = Math.round(monX + monW - houseW - sz * scale - 8 * scale)
-        // Target = horizontally centred on the active monitor, same Y line.
-        const targetX = Math.round(monX + monW / 2 - (sz * scale) / 2)
+          // Same approximations the notification handler uses.
+          const taskbarH = 48 * scale
+          const houseW = 64 * scale
+          const bottomY = Math.round(monY + monH - taskbarH - sz * scale)
+          // Pet starts immediately to the left of the house with a small gap.
+          const startX = Math.round(monX + monW - houseW - sz * scale - 8 * scale)
+          // Target = horizontally centred on the active monitor, same Y line.
+          const targetX = Math.round(monX + monW / 2 - (sz * scale) / 2)
 
-        // 1. Teleport to "exiting house" pose.
-        overridePosition(startX, bottomY)
-        const hasWalkLeft = availableAnimationsList.includes('walk_left')
-        if (hasWalkLeft) setEdgeAnimOverride('walk_left')
+          // 1. Teleport to "exiting house" pose.
+          overridePosition(startX, bottomY)
+          const hasWalkLeft = availableAnimationsList.includes('walk_left')
+          if (hasWalkLeft) setEdgeAnimOverride('walk_left')
 
-        // 2. Slide horizontally over ONBOARDING_SLIDE_MS.
-        const t0 = performance.now()
-        await new Promise<void>((resolve) => {
-          const tick = () => {
-            if (cancelled) return resolve()
-            const t = Math.min((performance.now() - t0) / ONBOARDING_SLIDE_MS, 1)
-            const x = startX + (targetX - startX) * t
-            overridePosition(Math.round(x), bottomY)
-            if (t < 1) requestAnimationFrame(tick)
-            else resolve()
-          }
-          requestAnimationFrame(tick)
-        })
-        if (cancelled) return
-        setEdgeAnimOverride(null)
+          // 2. Slide horizontally over ONBOARDING_SLIDE_MS.
+          const t0 = performance.now()
+          await new Promise<void>((resolve) => {
+            const tick = () => {
+              if (cancelled) return resolve()
+              const t = Math.min((performance.now() - t0) / ONBOARDING_SLIDE_MS, 1)
+              const x = startX + (targetX - startX) * t
+              overridePosition(Math.round(x), bottomY)
+              if (t < 1) requestAnimationFrame(tick)
+              else resolve()
+            }
+            requestAnimationFrame(tick)
+          })
+          if (cancelled) return
+          setEdgeAnimOverride(null)
+        }
 
         // 3. Build and show the announcement bubble.
-        const announcement: AnnouncementContent =
-          onboarding.state === 'ollama_found'
+        const announcement: AnnouncementContent = isOmoState
+          ? omoAnnounce(
+              onboarding.state === 'omo_missing'
+                ? 'missing'
+                : onboarding.state === 'omo_no_auth'
+                  ? 'no_auth'
+                  : 'ready'
+            )
+          : onboarding.state === 'ollama_found'
             ? {
                 text: `Hello! I detected Ollama running and automatically set myself up to use ${
                   onboarding.detectedModel ?? 'your local model'
@@ -665,10 +726,17 @@ export default function App() {
         void openBubble()
 
         // 4. Autoclose after ONBOARDING_AUTOCLOSE_MS — same path as a click.
-        onboardingAutocloseRef.current = setTimeout(
-          () => closeOnboardingBubble(false),
-          ONBOARDING_AUTOCLOSE_MS
-        )
+        // omo setup steps are blocking: without the agent installed there is
+        // no product, so the wizard must wait for a real user action instead
+        // of silently dismissing itself.
+        const isBlockingOmoStep =
+          onboarding.state === 'omo_missing' || onboarding.state === 'omo_no_auth'
+        if (!isBlockingOmoStep) {
+          onboardingAutocloseRef.current = setTimeout(
+            () => closeOnboardingBubble(false),
+            ONBOARDING_AUTOCLOSE_MS
+          )
+        }
       } catch (err) {
         console.error('[onboarding] sequence failed:', err)
         // Don't block the user behind a broken animation — give up cleanly.

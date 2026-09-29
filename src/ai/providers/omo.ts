@@ -1,5 +1,6 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { homeDir, join } from '@tauri-apps/api/path'
+import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import type { AIProvider, Message } from '../types'
 
 /**
@@ -88,7 +89,7 @@ class OmoBackend {
     this.ready = true
   }
 
-  private static async resolveOmo(): Promise<string | null> {
+  static async resolveOmo(): Promise<string | null> {
     // `Command.create` resolves the SCOPE NAME, not a path — each name maps
     // to a `cmd` in capabilities/default.json. Try install locations in
     // likelihood order; PATH lookups ('omo'/'omo.exe') go last because a
@@ -268,6 +269,25 @@ class OmoBackend {
 
 const backend = new OmoBackend()
 let contextSent = false
+
+// ─── Onboarding probes ────────────────────────────────────────────────────────
+
+/** Scope name of a working omo binary, or null when nothing is installed. */
+export function probeOmoInstall(): Promise<string | null> {
+  return OmoBackend.resolveOmo()
+}
+
+/** Number of authenticated providers in ~/.omo/agent/auth.json (0 = needs login). */
+export async function omoAuthProviderCount(): Promise<number> {
+  try {
+    const p = await join(await homeDir(), '.omo', 'agent', 'auth.json')
+    if (!(await exists(p))) return 0
+    const parsed = JSON.parse(await readTextFile(p)) as Record<string, unknown>
+    return Object.keys(parsed).length
+  } catch {
+    return 0
+  }
+}
 
 export class OmoProvider implements AIProvider {
   async sendMessage(messages: Message[], systemPrompt: string): Promise<string> {
