@@ -12,6 +12,7 @@ import {
   type AIConfig,
   type MaxTokensPreset,
 } from '../ai/types'
+import { loadSchedules, saveSchedules, type Schedule } from '../automation/scheduler'
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
@@ -91,6 +92,40 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
   )
   const customInputRef = useRef<HTMLInputElement>(null)
   const [savedPos, setSavedPos] = useState<{ x: number; y: number } | null>(null)
+
+  // ── Automation schedules (~/.sidecat/schedules.json) ─────────────────────
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [autoName, setAutoName] = useState('')
+  const [autoAt, setAutoAt] = useState('08:00')
+  const [autoInstr, setAutoInstr] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) return
+    void loadSchedules().then((f) => setSchedules(f.schedules))
+  }, [isOpen])
+
+  const persistSchedules = useCallback(async (list: Schedule[]) => {
+    setSchedules(list)
+    await saveSchedules({ schedules: list }).catch((e) =>
+      console.error('[Settings] saveSchedules failed:', e)
+    )
+  }, [])
+
+  const addSchedule = useCallback(() => {
+    const name = autoName.trim()
+    const instruction = autoInstr.trim()
+    if (!name || !instruction || !/^\d{1,2}:\d{2}$/.test(autoAt.trim())) return
+    const entry: Schedule = {
+      id: `s-${Date.now().toString(36)}`,
+      name,
+      instruction,
+      at: autoAt.trim().padStart(5, '0'),
+      enabled: true,
+    }
+    void persistSchedules([...schedules, entry])
+    setAutoName('')
+    setAutoInstr('')
+  }, [autoName, autoAt, autoInstr, schedules, persistSchedules])
 
   // ── Load config + user name on first open ──────────────────────────────────
   useEffect(() => {
@@ -424,6 +459,74 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
                 ?.hint}
         </p>
 
+        {/* ── Automation schedules ────────────────────────────────────────── */}
+        <div style={styles.divider} />
+        <label style={styles.label}>자동화 — 매일 정해진 시각에 실행</label>
+        {schedules.length === 0 && (
+          <p style={styles.autoHint}>등록된 작업 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼</p>
+        )}
+        {schedules.map((s) => (
+          <div key={s.id} style={styles.autoRow}>
+            <input
+              type="checkbox"
+              checked={s.enabled}
+              onChange={() =>
+                void persistSchedules(
+                  schedules.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
+                )
+              }
+              title={s.enabled ? '끄기' : '켜기'}
+            />
+            <span style={styles.autoName} title={s.instruction}>
+              {s.at} {s.name}
+              {s.lastError ? ' ⚠' : ''}
+            </span>
+            <button
+              style={styles.autoDel}
+              onClick={() => void persistSchedules(schedules.filter((x) => x.id !== s.id))}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <div style={styles.autoRow}>
+          <input
+            style={{ ...styles.input, width: 52, flex: 'none' }}
+            type="text"
+            value={autoAt}
+            onChange={(e) => setAutoAt(e.target.value)}
+            placeholder="08:00"
+            title="시각 (HH:MM)"
+          />
+          <input
+            style={{ ...styles.input, flex: 1 }}
+            type="text"
+            value={autoName}
+            onChange={(e) => setAutoName(e.target.value)}
+            placeholder="작업 이름"
+          />
+        </div>
+        <div style={styles.autoRow}>
+          <input
+            style={{ ...styles.input, flex: 1 }}
+            type="text"
+            value={autoInstr}
+            onChange={(e) => setAutoInstr(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addSchedule()
+              }
+            }}
+            placeholder="할 일 (예: 뉴스 헤드라인 정리해서 runs/에 저장)"
+          />
+          <button style={styles.autoAdd} onClick={addSchedule} title="등록">
+            +
+          </button>
+        </div>
+
         {/* ── Test button ─────────────────────────────────────────────────── */}
         <button
           style={{
@@ -502,7 +605,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     boxSizing: 'border-box',
     width: '280px',
-    overflowY: 'hidden',
+    overflowY: 'auto',
   },
   header: {
     display: 'flex',
@@ -695,6 +798,44 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     marginBottom: 4,
+  },
+  autoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  autoName: {
+    flex: 1,
+    fontSize: 12,
+    color: '#ddd',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  autoDel: {
+    background: 'transparent',
+    border: 'none',
+    color: '#e05555',
+    cursor: 'pointer',
+    fontSize: 12,
+    padding: '0 2px',
+  },
+  autoAdd: {
+    background: '#3a5',
+    border: 'none',
+    color: '#fff',
+    borderRadius: 6,
+    width: 26,
+    height: 26,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  autoHint: {
+    fontSize: 11,
+    color: '#777',
+    margin: '2px 0',
   },
   gear: {
     position: 'absolute',

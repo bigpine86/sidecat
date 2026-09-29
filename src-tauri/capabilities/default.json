@@ -26,28 +26,44 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "omo",
-          "cmd": "omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
           "name": "omo-bun",
           "cmd": "$HOME/.bun/bin/omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
-          "name": "omo-homebrew",
-          "cmd": "/opt/homebrew/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
         },
         {
           "name": "omo-local",
           "cmd": "$HOME/.local/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-usrlocal",
+          "cmd": "/usr/local/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-bun-exe",
+          "cmd": "$HOME/.bun/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo-local-exe",
+          "cmd": "$HOME/.local/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true
+        },
+        {
+          "name": "omo-exe",
+          "cmd": "omo.exe",
+          "args": true
         }
       ]
     },
@@ -55,28 +71,44 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         {
-          "name": "omo",
-          "cmd": "omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
           "name": "omo-bun",
           "cmd": "$HOME/.bun/bin/omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
-          "name": "omo-homebrew",
-          "cmd": "/opt/homebrew/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
         },
         {
           "name": "omo-local",
           "cmd": "$HOME/.local/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-usrlocal",
+          "cmd": "/usr/local/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-bun-exe",
+          "cmd": "$HOME/.bun/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo-local-exe",
+          "cmd": "$HOME/.local/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true
+        },
+        {
+          "name": "omo-exe",
+          "cmd": "omo.exe",
+          "args": true
         }
       ]
     },
@@ -84,28 +116,44 @@
       "identifier": "shell:allow-stdin-write",
       "allow": [
         {
-          "name": "omo",
-          "cmd": "omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
           "name": "omo-bun",
           "cmd": "$HOME/.bun/bin/omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
-          "name": "omo-homebrew",
-          "cmd": "/opt/homebrew/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
         },
         {
           "name": "omo-local",
           "cmd": "$HOME/.local/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-usrlocal",
+          "cmd": "/usr/local/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-bun-exe",
+          "cmd": "$HOME/.bun/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo-local-exe",
+          "cmd": "$HOME/.local/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true
+        },
+        {
+          "name": "omo-exe",
+          "cmd": "omo.exe",
+          "args": true
         }
       ]
     },
@@ -113,28 +161,44 @@
       "identifier": "shell:allow-kill",
       "allow": [
         {
-          "name": "omo",
-          "cmd": "omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
           "name": "omo-bun",
           "cmd": "$HOME/.bun/bin/omo",
-          "args": true,
-          "sidecar": false
-        },
-        {
-          "name": "omo-homebrew",
-          "cmd": "/opt/homebrew/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
         },
         {
           "name": "omo-local",
           "cmd": "$HOME/.local/bin/omo",
-          "args": true,
-          "sidecar": false
+          "args": true
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-usrlocal",
+          "cmd": "/usr/local/bin/omo",
+          "args": true
+        },
+        {
+          "name": "omo-bun-exe",
+          "cmd": "$HOME/.bun/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo-local-exe",
+          "cmd": "$HOME/.local/bin/omo.exe",
+          "args": true
+        },
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true
+        },
+        {
+          "name": "omo-exe",
+          "cmd": "omo.exe",
+          "args": true
         }
       ]
     },
@@ -143,14 +207,26 @@
       "allow": [
         { "path": "$RESOURCE/**" },
         { "path": "$APPCONFIG/**" },
-        { "path": "$APPDATA/**" }
+        { "path": "$APPDATA/**" },
+        { "path": "$HOME/.sidecat" },
+        { "path": "$HOME/.sidecat/**" }
       ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/.sidecat" }, { "path": "$HOME/.sidecat/**" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$HOME/.sidecat" }, { "path": "$HOME/.sidecat/**" }]
     },
     {
       "identifier": "fs:allow-exists",
       "allow": [
         { "path": "$RESOURCE/**" },
-        { "path": "$APPDATA/**" }
+        { "path": "$APPDATA/**" },
+        { "path": "$HOME/.sidecat" },
+        { "path": "$HOME/.sidecat/**" }
       ]
     }
   ]

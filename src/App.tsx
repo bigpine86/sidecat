@@ -13,6 +13,7 @@ import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
 import { createAIProvider, buildContextBlock } from './ai'
 import { loadFacts, extractAndSaveFacts } from './ai/memory'
+import { startScheduler, type Schedule } from './automation/scheduler'
 import { useDesktopContext } from './hooks/useDesktopContext'
 import { useMoodEngine } from './hooks/useMoodEngine'
 import { useIdleSequencer } from './hooks/useIdleSequencer'
@@ -390,7 +391,7 @@ export default function App() {
   const handleSendMessage = useCallback(async (text: string): Promise<string> => {
     const { config: cfg } = useConfigStore.getState()
 
-    if (!cfg.apiKey && cfg.provider !== 'ollama') {
+    if (!cfg.apiKey && cfg.provider !== 'ollama' && cfg.provider !== 'omo') {
       return 'Nyaa~ I need an API key to talk! Set one in Settings 🐾'
     }
 
@@ -493,6 +494,78 @@ export default function App() {
       savedPos.current = null
     }
   }, [])
+
+  // ── Automation: scheduled agent tasks ────────────────────────────────────
+  // schedules.json lives in ~/.sidecat — the omo agent's cwd — so "매일 8시에
+  // 해줘" in chat becomes the agent appending an entry, and this loop firing
+  // it back as an omo turn. Completion surfaces as an announcement bubble.
+  const announceQueueRef = useRef<AnnouncementContent[]>([])
+  const uiBusyRef = useRef(false)
+  useEffect(() => {
+    uiBusyRef.current = bubbleOpen || anyPanelOpen || onboardingActive
+  }, [bubbleOpen, anyPanelOpen, onboardingActive])
+
+  const dismissAnnouncement = useCallback(() => {
+    setOnboardingAnnouncement(null)
+    void closeBubble()
+  }, [closeBubble])
+
+  const tryFlushAnnounce = useCallback(() => {
+    if (uiBusyRef.current) return
+    const next = announceQueueRef.current.shift()
+    if (!next) return
+    setOnboardingAnnouncement(next)
+    void openBubble()
+  }, [openBubble])
+
+  const runScheduledTask = useCallback(async (s: Schedule): Promise<string> => {
+    const { config: cfg } = useConfigStore.getState()
+    await invoke('save_message', {
+      role: 'user',
+      content: `[자동 실행: ${s.name}] ${s.instruction}`,
+    }).catch(() => {})
+    const [facts] = await Promise.all([loadFacts()])
+    const mood = useAppStore.getState().mood
+    const systemPrompt =
+      buildContextBlock('NekoAI', facts, mood) +
+      '\n\n[자동 작업] 예약된 자동 작업을 실행 중이다. 가진 도구로 끝까지 수행하고, 결과를 1~2문장으로 짧게 보고하라. 산출물이 필요하면 ~/.sidecat/runs/ 아래에 파일로 저장하라.'
+    const provider = createAIProvider(cfg)
+    const reply = await provider.sendMessage(
+      [{ role: 'user', content: s.instruction }],
+      systemPrompt
+    )
+    await invoke('save_message', { role: 'assistant', content: reply }).catch(() => {})
+    return reply
+  }, [])
+
+  useEffect(() => {
+    if (!isLoaded) return
+    const stop = startScheduler(async (s) => {
+      try {
+        const reply = await runScheduledTask(s)
+        const short = reply.length > 160 ? reply.slice(0, 157) + '…' : reply
+        announceQueueRef.current.push({
+          text: `🐾 '${s.name}' 완료!\n${short}`,
+          actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+        })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        announceQueueRef.current.push({
+          text: `😿 '${s.name}' 실패…\n${msg}`,
+          actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+        })
+        throw e
+      } finally {
+        tryFlushAnnounce()
+      }
+    })
+    return stop
+  }, [isLoaded, runScheduledTask, dismissAnnouncement, tryFlushAnnounce])
+
+  // Show queued announcements once the bubble/panels are free again.
+  useEffect(() => {
+    if (!bubbleOpen) tryFlushAnnounce()
+  }, [bubbleOpen, tryFlushAnnounce])
 
   // ── Onboarding sequence ────────────────────────────────────────────────────
   // Cursor following stays paused via `onboardingActive` (see usePetMovement

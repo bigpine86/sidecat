@@ -89,32 +89,27 @@ class OmoBackend {
   }
 
   private static async resolveOmo(): Promise<string | null> {
-    const home = await homeDir()
-    const candidates = [
-      await join(home, '.bun', 'bin', 'omo'),
-      await join(home, '.local', 'bin', 'omo'),
-      '/opt/homebrew/bin/omo',
-      '/usr/local/bin/omo',
-      'C:\\Program Files\\omo\\omo.exe',
-      await join(home, '.local', 'bin', 'omo.exe'),
+    // `Command.create` resolves the SCOPE NAME, not a path — each name maps
+    // to a `cmd` in capabilities/default.json. Try install locations in
+    // likelihood order; PATH lookups ('omo'/'omo.exe') go last because a
+    // packaged app's PATH is usually minimal.
+    const scopes = [
+      'omo-bun',
+      'omo-local',
+      'omo-homebrew',
+      'omo-usrlocal',
+      'omo-bun-exe',
+      'omo-local-exe',
+      'omo',
+      'omo-exe',
     ]
-    // Probe candidates by asking the shell layer to spawn `--version`.
-    for (const path of candidates) {
+    for (const name of scopes) {
       try {
-        const probe = Command.create(path, ['--version'])
-        const out = await probe.execute()
-        if (out.code === 0) return path
+        const out = await Command.create(name, ['--version']).execute()
+        if (out.code === 0) return name
       } catch {
-        /* not here */
+        /* not installed there */
       }
-    }
-    // Last resort: hope PATH covers it (dev shells usually do).
-    try {
-      const probe = Command.create('omo', ['--version'])
-      const out = await probe.execute()
-      if (out.code === 0) return 'omo'
-    } catch {
-      /* not on PATH either */
     }
     return null
   }

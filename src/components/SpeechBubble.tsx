@@ -225,6 +225,11 @@ export function SpeechBubble({
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       resetTimer() // any key press resets inactivity
+      // CJK IME: Enter/Escape pressed mid-composition belongs to the IME —
+      // Enter commits the syllable, Escape cancels it. Intercepting either
+      // here sends a half-composed message (and can double the last jamo)
+      // or closes the whole bubble while the user only meant "cancel char".
+      if (e.nativeEvent.isComposing) return
       if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
