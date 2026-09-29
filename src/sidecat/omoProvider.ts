@@ -1,7 +1,7 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { homeDir, join } from '@tauri-apps/api/path'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
-import type { AIProvider, Message } from '../types'
+import type { AIProvider, Message } from '../ai/types'
 
 /**
  * OmoProvider — routes chat through a locally running `omo app-server`

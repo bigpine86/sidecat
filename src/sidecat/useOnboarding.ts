@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useConfigStore, isConfigured } from '../store/configStore'
 import { OllamaProvider } from '../ai/providers/ollama'
-import { probeOmoInstall, omoAuthProviderCount } from '../ai/providers/omo'
+import { probeOmoInstall, omoAuthProviderCount } from './omoProvider'
 
 // First-launch onboarding orchestrator.
 //

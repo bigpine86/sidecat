@@ -12,25 +12,26 @@ import {
   type AIConfig,
   type MaxTokensPreset,
 } from '../ai/types'
+import { loadSchedules, saveSchedules, type Schedule } from './scheduler'
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
 const PANEL_W = 280
 const PANEL_H = 600
-const SPRITE_SIZE = 32
+const SPRITE_SIZE = 64
 
 const RESPONSE_LENGTH_OPTIONS: {
   key: MaxTokensPreset
   label: string
   hint: string
 }[] = [
-  { key: 'short', label: 'S', hint: '~1 párrafo · más rápido' },
-  { key: 'medium', label: 'M', hint: '~3 párrafos · recomendado' },
-  { key: 'long', label: 'L', hint: '~6 párrafos · puede tardar más' },
+  { key: 'short', label: 'S', hint: '~1문단 · 빠름' },
+  { key: 'medium', label: 'M', hint: '~3문단 · 추천' },
+  { key: 'long', label: 'L', hint: '~6문단 · 좀 걸릴 수 있음' },
   {
     key: 'custom',
     label: '⚙',
-    hint: `Custom · ${MAX_TOKENS_BOUNDS.min}–${MAX_TOKENS_BOUNDS.max} tokens`,
+    hint: `직접 입력 · ${MAX_TOKENS_BOUNDS.min}–${MAX_TOKENS_BOUNDS.max} 토큰`,
   },
 ]
 
@@ -44,27 +45,29 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; placeholder: string }> 
   openai: { model: 'gpt-4o-mini', placeholder: 'sk-…' },
   ollama: { model: 'llama3', placeholder: '(not required)' },
   nvidia: { model: 'meta/llama-3.1-8b-instruct', placeholder: 'nvapi-…' },
+  omo: { model: '(omo가 관리)', placeholder: '(omo 인증 사용)' },
 }
 
 // External help links — surfaced when the panel opens without working
 // credentials. Gemini gets a "free" tag because aistudio offers a free tier
 // that's the lowest-friction onboarding path for non-technical users.
 const PROVIDER_HELP: Record<string, { url: string; label: string }> = {
-  anthropic: { url: 'https://console.anthropic.com/settings/keys', label: 'Obtener API key' },
-  openai: { url: 'https://platform.openai.com/api-keys', label: 'Obtener API key' },
-  gemini: { url: 'https://aistudio.google.com/apikey', label: 'Obtener API key gratis' },
-  nvidia: { url: 'https://build.nvidia.com/', label: 'Obtener API key' },
-  ollama: { url: 'https://ollama.com/download', label: 'Descargar Ollama' },
+  anthropic: { url: 'https://console.anthropic.com/settings/keys', label: 'API 키 발급받기' },
+  openai: { url: 'https://platform.openai.com/api-keys', label: 'API 키 발급받기' },
+  gemini: { url: 'https://aistudio.google.com/apikey', label: '무료 API 키 발급받기' },
+  nvidia: { url: 'https://build.nvidia.com/', label: 'API 키 발급받기' },
+  ollama: { url: 'https://ollama.com/download', label: 'Ollama 다운로드' },
+  omo: { url: 'https://omo.run', label: 'omo 설치/로그인 안내' },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-interface Props {
+interface SidecatSettingsProps {
   isOpen: boolean
   onClose: () => void
 }
 
-export function SettingsPanel({ isOpen, onClose }: Props) {
+export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
   const {
     config,
     isLoaded,
@@ -74,6 +77,9 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
     setModel,
     setBaseUrl,
     setMaxTokens,
+    setPetMode,
+    setProactiveInterval,
+    setClickStyle,
   } = useConfigStore()
 
   const [userName, setUserName] = useState('')
@@ -89,6 +95,40 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
   )
   const customInputRef = useRef<HTMLInputElement>(null)
   const [savedPos, setSavedPos] = useState<{ x: number; y: number } | null>(null)
+
+  // ── Automation schedules (~/.sidecat/schedules.json) ─────────────────────
+  const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [autoName, setAutoName] = useState('')
+  const [autoAt, setAutoAt] = useState('08:00')
+  const [autoInstr, setAutoInstr] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) return
+    void loadSchedules().then((f) => setSchedules(f.schedules))
+  }, [isOpen])
+
+  const persistSchedules = useCallback(async (list: Schedule[]) => {
+    setSchedules(list)
+    await saveSchedules({ schedules: list }).catch((e) =>
+      console.error('[Settings] saveSchedules failed:', e)
+    )
+  }, [])
+
+  const addSchedule = useCallback(() => {
+    const name = autoName.trim()
+    const instruction = autoInstr.trim()
+    if (!name || !instruction || !/^\d{1,2}:\d{2}$/.test(autoAt.trim())) return
+    const entry: Schedule = {
+      id: `s-${Date.now().toString(36)}`,
+      name,
+      instruction,
+      at: autoAt.trim().padStart(5, '0'),
+      enabled: true,
+    }
+    void persistSchedules([...schedules, entry])
+    setAutoName('')
+    setAutoInstr('')
+  }, [autoName, autoAt, autoInstr, schedules, persistSchedules])
 
   // ── Load config + user name on first open ──────────────────────────────────
   useEffect(() => {
@@ -236,7 +276,8 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
   if (!isOpen) return null
 
   const isOllama = config.provider === 'ollama'
-  const hasCredentials = isOllama || !!config.apiKey
+  const isOmo = config.provider === 'omo'
+  const hasCredentials = isOllama || isOmo || !!config.apiKey
   const status: 'connected' | 'untested' | 'disconnected' = !hasCredentials
     ? 'disconnected'
     : testStatus === 'ok'
@@ -249,8 +290,8 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
       <div style={styles.panel} onClick={(e) => e.stopPropagation()}>
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div style={styles.header}>
-          <span style={styles.title}>⚙ Settings</span>
-          <button style={styles.closeBtn} onClick={onClose} title="Close">
+          <span style={styles.title}>⚙ 설정</span>
+          <button style={styles.closeBtn} onClick={onClose} title="닫기">
             ✕
           </button>
         </div>
@@ -264,13 +305,13 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
             ...(status === 'disconnected' ? styles.statusError : {}),
           }}
         >
-          {status === 'connected' && '🟢 IA Conectada'}
-          {status === 'untested' && '🟡 Sin verificar'}
-          {status === 'disconnected' && '🔴 IA Desconectada'}
+          {status === 'connected' && '🟢 AI 연결됨'}
+          {status === 'untested' && '🟡 미확인'}
+          {status === 'disconnected' && '🔴 AI 연결 안 됨'}
         </div>
 
         {/* ── Provider ────────────────────────────────────────────────────── */}
-        <label style={styles.label}>AI Provider</label>
+        <label style={styles.label}>AI 제공자</label>
         <select
           style={styles.select}
           value={config.provider}
@@ -279,24 +320,29 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           <option value="gemini">Google (Gemini)</option>
           <option value="anthropic">Anthropic (Claude)</option>
           <option value="openai">OpenAI (GPT)</option>
-          <option value="ollama">Ollama (local)</option>
+          <option value="ollama">Ollama (로컬)</option>
           <option value="nvidia">NVIDIA NIM</option>
+          <option value="omo">omo (에이전트 — 브라우저·도구 사용)</option>
         </select>
 
-        {/* ── Model ───────────────────────────────────────────────────────── */}
-        <label style={styles.label}>Model</label>
-        <input
-          style={styles.input}
-          type="text"
-          value={config.model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
-        />
-
-        {/* ── API key (hidden for Ollama) ──────────────────────────────────── */}
-        {!isOllama && (
+        {/* ── Model (hidden for omo — 모델 선택은 omo가 관리) ──────────────── */}
+        {!isOmo && (
           <>
-            <label style={styles.label}>API Key</label>
+            <label style={styles.label}>모델</label>
+            <input
+              style={styles.input}
+              type="text"
+              value={config.model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
+            />
+          </>
+        )}
+
+        {/* ── API key (hidden for Ollama/omo) ──────────────────────────────── */}
+        {!isOllama && !isOmo && (
+          <>
+            <label style={styles.label}>API 키</label>
             <div style={styles.keyRow}>
               <input
                 style={{ ...styles.input, flex: 1 }}
@@ -309,7 +355,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
               <button
                 style={styles.eyeBtn}
                 onClick={() => setShowKey((v) => !v)}
-                title={showKey ? 'Hide' : 'Show'}
+                title={showKey ? '숨기기' : '보이기'}
               >
                 {showKey ? '🙈' : '👁'}
               </button>
@@ -320,7 +366,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Ollama base URL ──────────────────────────────────────────────── */}
         {isOllama && (
           <>
-            <label style={styles.label}>Base URL</label>
+            <label style={styles.label}>서버 주소</label>
             <input
               style={styles.input}
               type="text"
@@ -343,18 +389,18 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         )}
 
         {/* ── User name ───────────────────────────────────────────────────── */}
-        <label style={styles.label}>Your Name (optional)</label>
+        <label style={styles.label}>이름 (선택)</label>
         <input
           style={styles.input}
           type="text"
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
           onBlur={handleUserNameBlur}
-          placeholder="e.g. Alex"
+          placeholder="예: 한솔"
         />
 
         {/* ── Response length ─────────────────────────────────────────────── */}
-        <label style={styles.label}>Response length</label>
+        <label style={styles.label}>답변 길이</label>
         <div style={styles.tokenRow}>
           {RESPONSE_LENGTH_OPTIONS.map(({ key, label, hint }) => {
             const active = maxTokensPreset(config.maxTokens) === key
@@ -405,16 +451,176 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
                 customInputRef.current?.blur()
               }
             }}
-            aria-label="Custom response length in tokens"
+            aria-label="답변 길이 직접 입력 (토큰)"
           />
-          <span style={styles.customUnit}>tokens</span>
+          <span style={styles.customUnit}>토큰</span>
         </div>
         <p style={styles.tokenHint}>
           {maxTokensPreset(config.maxTokens) === 'custom'
-            ? `Custom · ${config.maxTokens} tokens`
+            ? `직접 입력 · ${config.maxTokens} 토큰`
             : RESPONSE_LENGTH_OPTIONS.find((o) => o.key === maxTokensPreset(config.maxTokens))
                 ?.hint}
         </p>
+
+        {/* ── Cat behaviour mode ──────────────────────────────────────────── */}
+        <div style={styles.divider} />
+        <label style={styles.label}>고양이 행동 모드</label>
+        <div style={styles.tokenRow}>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...((config.petMode ?? 'wanderer') === 'wanderer' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setPetMode('wanderer')}
+            title="화면 가장자리를 따라 노는 자율 배회 — 작업을 덜 가림"
+          >
+            자유 배회
+          </button>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...(config.petMode === 'buddy' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setPetMode('buddy')}
+            title="마우스 커서를 따라다님"
+          >
+            커서 추적
+          </button>
+        </div>
+        <p style={styles.tokenHint}>
+          {(config.petMode ?? 'wanderer') === 'wanderer'
+            ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
+            : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
+        </p>
+
+        {/* ── Proactive barks ─────────────────────────────────────────────── */}
+        <label style={styles.label}>먼저 말 걸기</label>
+        <div style={styles.tokenRow}>
+          {[
+            { min: 0, label: '끄기' },
+            { min: 10, label: '10분' },
+            { min: 30, label: '30분' },
+            { min: 60, label: '1시간' },
+          ].map(({ min, label }) => {
+            const active = (config.proactiveIntervalMin ?? 0) === min
+            return (
+              <button
+                key={min}
+                style={{
+                  ...styles.tokenBtn,
+                  ...(active ? styles.tokenBtnActive : {}),
+                }}
+                onClick={() => void setProactiveInterval(min)}
+                title={min === 0 ? '먼저 말 걸지 않음' : `약 ${label}마다 한마디씩`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <p style={styles.tokenHint}>
+          {(config.proactiveIntervalMin ?? 0) > 0
+            ? '가만히 있으면 고양이가 화면을 힐끔 보고 먼저 한마디 해요 · 자는 중이나 대화 중엔 조용'
+            : '사용자가 먼저 말 걸 때까지 조용히 놀아요'}
+        </p>
+
+        {/* ── Click behaviour ─────────────────────────────────────────────── */}
+        <label style={styles.label}>고양이 클릭하면</label>
+        <div style={styles.tokenRow}>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...((config.clickStyle ?? 'chat') === 'chat' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setClickStyle('chat')}
+            title="클릭하면 채팅창이 열려요"
+          >
+            대화창
+          </button>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...(config.clickStyle === 'bark' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setClickStyle('bark')}
+            title="클릭하면 한 문장 말풍선만 띄워요"
+          >
+            한마디 말풍선
+          </button>
+        </div>
+        <p style={styles.tokenHint}>
+          {config.clickStyle === 'bark'
+            ? '클릭할 때마다 한 문장만 띄워요 · 대화는 우클릭 → Chat · 다시 클릭하면 닫혀요'
+            : '클릭하면 채팅창이 열려요'}
+        </p>
+
+        {/* ── Automation schedules ────────────────────────────────────────── */}
+        <div style={styles.divider} />
+        <label style={styles.label}>자동화 — 매일 정해진 시각에 실행</label>
+        {schedules.length === 0 && (
+          <p style={styles.autoHint}>등록된 작업 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼</p>
+        )}
+        {schedules.map((s) => (
+          <div key={s.id} style={styles.autoRow}>
+            <input
+              type="checkbox"
+              checked={s.enabled}
+              onChange={() =>
+                void persistSchedules(
+                  schedules.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
+                )
+              }
+              title={s.enabled ? '끄기' : '켜기'}
+            />
+            <span style={styles.autoName} title={s.instruction}>
+              {s.at} {s.name}
+              {s.lastError ? ' ⚠' : ''}
+            </span>
+            <button
+              style={styles.autoDel}
+              onClick={() => void persistSchedules(schedules.filter((x) => x.id !== s.id))}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <div style={styles.autoRow}>
+          <input
+            style={{ ...styles.input, width: 52, flex: 'none' }}
+            type="text"
+            value={autoAt}
+            onChange={(e) => setAutoAt(e.target.value)}
+            placeholder="08:00"
+            title="시각 (HH:MM)"
+          />
+          <input
+            style={{ ...styles.input, flex: 1 }}
+            type="text"
+            value={autoName}
+            onChange={(e) => setAutoName(e.target.value)}
+            placeholder="작업 이름"
+          />
+        </div>
+        <div style={styles.autoRow}>
+          <input
+            style={{ ...styles.input, flex: 1 }}
+            type="text"
+            value={autoInstr}
+            onChange={(e) => setAutoInstr(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addSchedule()
+              }
+            }}
+            placeholder="할 일 (예: 뉴스 헤드라인 정리해서 runs/에 저장)"
+          />
+          <button style={styles.autoAdd} onClick={addSchedule} title="등록">
+            +
+          </button>
+        </div>
 
         {/* ── Test button ─────────────────────────────────────────────────── */}
         <button
@@ -426,7 +632,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           onClick={handleTest}
           disabled={testStatus === 'loading'}
         >
-          {testStatus === 'loading' ? 'Testing…' : 'Test connection'}
+          {testStatus === 'loading' ? '테스트 중…' : '연결 테스트'}
         </button>
 
         {testMsg !== '' && (
@@ -443,7 +649,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
         {/* ── Quit ────────────────────────────────────────────────────────── */}
         <div style={styles.divider} />
         <button style={styles.quitBtn} onClick={() => invoke('quit_app')}>
-          Quit NekoAI
+          Sidecat 종료
         </button>
       </div>
     </div>
@@ -464,7 +670,7 @@ export function SettingsGear({ onClick }: GearProps) {
         e.stopPropagation()
         onClick()
       }}
-      title="Open settings"
+      title="설정 열기"
     >
       ⚙
     </button>
@@ -494,7 +700,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     boxSizing: 'border-box',
     width: '280px',
-    overflowY: 'hidden',
+    overflowY: 'auto',
   },
   header: {
     display: 'flex',
@@ -687,6 +893,44 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 600,
     marginBottom: 4,
+  },
+  autoRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  autoName: {
+    flex: 1,
+    fontSize: 12,
+    color: '#ddd',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  autoDel: {
+    background: 'transparent',
+    border: 'none',
+    color: '#e05555',
+    cursor: 'pointer',
+    fontSize: 12,
+    padding: '0 2px',
+  },
+  autoAdd: {
+    background: '#3a5',
+    border: 'none',
+    color: '#fff',
+    borderRadius: 6,
+    width: 26,
+    height: 26,
+    cursor: 'pointer',
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  autoHint: {
+    fontSize: 11,
+    color: '#777',
+    margin: '2px 0',
   },
   gear: {
     position: 'absolute',

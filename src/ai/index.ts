@@ -6,7 +6,7 @@ import { OpenAIProvider } from './providers/openai'
 import { OllamaProvider } from './providers/ollama'
 import { GeminiProvider } from './providers/gemini'
 import { NvidiaProvider } from './providers/nvidia'
-import { OmoProvider } from './providers/omo'
+import { OmoProvider } from '../sidecat/omoProvider'
 
 export function createAIProvider(config: AIConfig): AIProvider {
   const tokens = config.maxTokens

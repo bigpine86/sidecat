@@ -8,17 +8,19 @@ import { PetRenderer } from './pets/PetRenderer'
 import type { PetDefinition } from './types/pet'
 import { usePetMovement } from './hooks/usePetMovement'
 import { SpeechBubble, type AnnouncementContent, type Message } from './components/SpeechBubble'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SidecatSettings } from './sidecat/SidecatSettings'
+import { beginCatGrab } from './sidecat/catGrab'
+import { proactiveBark } from './sidecat/proactiveBark'
 import { PetSelector } from './components/PetSelector'
-import { useConfigStore, isConfigured } from './store/configStore'
+import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
 import { createAIProvider, buildContextBlock } from './ai'
 import { loadFacts, extractAndSaveFacts } from './ai/memory'
-import { startScheduler, type Schedule } from './automation/scheduler'
+import { startScheduler, type Schedule } from './sidecat/scheduler'
 import { useDesktopContext } from './hooks/useDesktopContext'
 import { useMoodEngine } from './hooks/useMoodEngine'
 import { useIdleSequencer } from './hooks/useIdleSequencer'
-import { useOnboarding, type OmoStatus } from './hooks/useOnboarding'
+import { useOnboarding, type OmoStatus } from './sidecat/useOnboarding'
 import { IS_LINUX } from './utils/platform'
 import './App.css'
 
@@ -80,38 +82,6 @@ function resolveAnimation({
 //     Ollama / NVIDIA paths go through reqwest).
 //   • HTTP-status errors — "<Provider> API error: <code> …" (all providers).
 // Anything unrecognised falls back to the generic message.
-
-// ── Proactive bark flavours ──────────────────────────────────────────────────
-// Weighted, time-of-day aware concept picker: at lunch the cat is hungry, late
-// at night it nags the user to sleep, and occasionally it snarks or talks
-// weather — a real cat has moods, not a script.
-function pickBarkHint(): string {
-  const h = new Date().getHours()
-  const pool: { w: number; hint: string }[] = [
-    { w: 3, hint: '심심하다는 투로 툭 한마디 걸기' },
-    { w: 2, hint: '츤츤거리며 놀아달라고 하기' },
-    { w: 2, hint: '뭐 그렇게 열심히 하냐고 시비조로 건드리기' },
-    {
-      w: 1,
-      hint: '날씨 얘기 — 가진 도구로 실제 날씨를 조회할 수 있으면 조회해서 알려주고, 없으면 계절·창밖 얘기로 대체',
-    },
-    { w: 1, hint: '아무 이유 없이 야옹 한 번 울고 튀기' },
-  ]
-  if (h >= 7 && h <= 10) pool.push({ w: 2, hint: '아침 — 오늘 뭐 할 거냐고 툭 던지기' })
-  if (h >= 11 && h <= 13) pool.push({ w: 4, hint: '점심시간 — 배고프다며 밥 얘기 꺼내기' })
-  if (h >= 14 && h <= 17) pool.push({ w: 2, hint: '오후 나른한 시간 — 졸리다며 칭얼대기' })
-  if (h >= 18 && h <= 22)
-    pool.push({ w: 2, hint: '저녁 — 오늘 하루 고생했다는 듯 츤츤거리며 챙기기' })
-  if (h >= 23 || h <= 5) pool.push({ w: 4, hint: '늦은 밤 — 안 자고 뭐하냐고 걱정인 척 시비 걸기' })
-
-  const total = pool.reduce((s, p) => s + p.w, 0)
-  let roll = Math.random() * total
-  for (const p of pool) {
-    roll -= p.w
-    if (roll <= 0) return p.hint
-  }
-  return pool[0].hint
-}
 
 function describeSendError(err: unknown, provider: string): string {
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
@@ -634,27 +604,10 @@ export default function App() {
 
   // ── Proactive barks: the cat talks first ─────────────────────────────────
   // proactiveIntervalMin drives a slow jittered timer; each tick nudges the
-  // agent with a "speak first" prompt and surfaces the reply through the same
-  // announcement bubble as scheduled tasks. The cat stays quiet while the UI
-  // is busy, while it's being dragged, or while it's asleep.
-  const proactiveBark = useCallback(async (): Promise<string | null> => {
-    const { config: cfg } = useConfigStore.getState()
-    if (!isConfigured(cfg)) return null
-    const [facts] = await Promise.all([loadFacts()])
-    const mood = useAppStore.getState().mood
-    const systemPrompt =
-      buildContextBlock('Sidecat', facts, mood) +
-      `\n\n[자발 발화] 사용자가 먼저 말을 걸지 않았다. 네가 먼저 말풍선에 띄울 한마디를 한다. 이번 컨셉: ${pickBarkHint()} 순수 텍스트 1~2문장만, 컨셉을 그대로 언급하지 말고 자연스럽게 행동으로.`
-    await invoke('save_message', { role: 'user', content: '[먼저 말 걸기]' }).catch(() => {})
-    const provider = createAIProvider(cfg)
-    const reply = await provider.sendMessage(
-      [{ role: 'user', content: '[먼저 말 걸기]' }],
-      systemPrompt
-    )
-    await invoke('save_message', { role: 'assistant', content: reply }).catch(() => {})
-    return reply
-  }, [])
-
+  // agent with a "speak first" prompt (logic lives in src/sidecat/) and
+  // surfaces the reply through the same announcement bubble as scheduled
+  // tasks. The cat stays quiet while the UI is busy, while it's being
+  // dragged, or while it's asleep.
   const petCalmRef = useRef(true)
   useEffect(() => {
     petCalmRef.current = !petDragging && petState !== 'SLEEPING'
@@ -690,7 +643,7 @@ export default function App() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [isLoaded, config.proactiveIntervalMin, proactiveBark, dismissAnnouncement, tryFlushAnnounce])
+  }, [isLoaded, config.proactiveIntervalMin, dismissAnnouncement, tryFlushAnnounce])
 
   // ── Onboarding sequence ────────────────────────────────────────────────────
   // Cursor following stays paused via `onboardingActive` (see usePetMovement
@@ -1006,7 +959,6 @@ export default function App() {
     openBubble,
     closeBubble,
     availableAnimationsList,
-    proactiveBark,
     dismissAnnouncement,
     tryFlushAnnounce,
   ])
@@ -1069,91 +1021,7 @@ export default function App() {
       // Drag to relocate it anywhere; release with speed to fling it (the
       // classic Neko toss — it slides with friction and settles at an edge).
       if (!bubbleOpen) {
-        const win = getCurrentWindow()
-        petDragMovedRef.current = false
-        setPetDragging(true)
-        try {
-          const [winPos, cursor0, monitor] = await Promise.all([
-            win.outerPosition(),
-            invoke<{ x: number; y: number }>('get_cursor_pos'),
-            currentMonitor(),
-          ])
-          const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
-          const grabDx = cursor0.x - winPos.x
-          const grabDy = cursor0.y - winPos.y
-          const trail: { x: number; y: number; t: number }[] = [
-            { x: cursor0.x, y: cursor0.y, t: performance.now() },
-          ]
-
-          const onMove = (ev: MouseEvent) => {
-            const cx = ev.screenX * scale
-            const cy = ev.screenY * scale
-            trail.push({ x: cx, y: cy, t: performance.now() })
-            if (trail.length > 10) trail.shift()
-            if (Math.abs(cx - cursor0.x) + Math.abs(cy - cursor0.y) > 6 * scale) {
-              petDragMovedRef.current = true
-            }
-            void win
-              .setPosition(new PhysicalPosition(Math.round(cx - grabDx), Math.round(cy - grabDy)))
-              .catch(() => {})
-          }
-
-          const onUp = (ev: MouseEvent) => {
-            document.removeEventListener('mousemove', onMove)
-            document.removeEventListener('mouseup', onUp)
-
-            // Release velocity from the last ~120ms of pointer movement.
-            const now = performance.now()
-            const recent = trail.filter((p) => now - p.t < 120)
-            let vx = 0
-            let vy = 0
-            if (recent.length >= 2) {
-              const a = recent[0]
-              const b = recent[recent.length - 1]
-              const dt = Math.max(1, b.t - a.t)
-              vx = (b.x - a.x) / dt
-              vy = (b.y - a.y) / dt
-            }
-
-            const endX = ev.screenX * scale - grabDx
-            const endY = ev.screenY * scale - grabDy
-            if (!petDragMovedRef.current || Math.hypot(vx, vy) < 0.25) {
-              setPetDragging(false)
-              return
-            }
-
-            // Fling: keep the loop paused while the window slides with
-            // friction, clamped inside the current monitor.
-            const monX = monitor?.position.x ?? 0
-            const monY = monitor?.position.y ?? 0
-            const monW = monitor?.size.width ?? window.screen.width * scale
-            const monH = monitor?.size.height ?? window.screen.height * scale
-            const sz = useConfigStore.getState().config.petSize ?? 64
-            const sizePhys = sz * scale
-            let px = endX
-            let py = endY
-            const slide = () => {
-              vx *= 0.94
-              vy *= 0.94
-              px = Math.max(monX, Math.min(px + vx * 16, monX + monW - sizePhys))
-              py = Math.max(monY, Math.min(py + vy * 16, monY + monH - sizePhys))
-              void win
-                .setPosition(new PhysicalPosition(Math.round(px), Math.round(py)))
-                .catch(() => {})
-              if (Math.hypot(vx, vy) > 0.05) {
-                requestAnimationFrame(slide)
-              } else {
-                setPetDragging(false)
-              }
-            }
-            requestAnimationFrame(slide)
-          }
-
-          document.addEventListener('mousemove', onMove)
-          document.addEventListener('mouseup', onUp)
-        } catch {
-          setPetDragging(false)
-        }
+        beginCatGrab({ setPetDragging, petDragMovedRef })
         return
       }
 
@@ -1204,7 +1072,7 @@ export default function App() {
       className={`app-container${bubbleOpen ? ' app-container--open' : ''}`}
       style={containerStyle}
     >
-      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SidecatSettings isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <PetSelector
         isOpen={petSelectorOpen}
