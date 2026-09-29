@@ -79,6 +79,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
     setMaxTokens,
     setPetMode,
     setProactiveInterval,
+    setClickStyle,
   } = useConfigStore()
 
   const [userName, setUserName] = useState('')
@@ -521,6 +522,36 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           {(config.proactiveIntervalMin ?? 0) > 0
             ? '가만히 있으면 고양이가 화면을 힐끔 보고 먼저 한마디 해요 · 자는 중이나 대화 중엔 조용'
             : '사용자가 먼저 말 걸 때까지 조용히 놀아요'}
+        </p>
+
+        {/* ── Click behaviour ─────────────────────────────────────────────── */}
+        <label style={styles.label}>고양이 클릭하면</label>
+        <div style={styles.tokenRow}>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...((config.clickStyle ?? 'chat') === 'chat' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setClickStyle('chat')}
+            title="클릭하면 채팅창이 열려요"
+          >
+            대화창
+          </button>
+          <button
+            style={{
+              ...styles.tokenBtn,
+              ...(config.clickStyle === 'bark' ? styles.tokenBtnActive : {}),
+            }}
+            onClick={() => void setClickStyle('bark')}
+            title="클릭하면 한 문장 말풍선만 띄워요"
+          >
+            한마디 말풍선
+          </button>
+        </div>
+        <p style={styles.tokenHint}>
+          {config.clickStyle === 'bark'
+            ? '클릭할 때마다 한 문장만 띄워요 · 대화는 우클릭 → Chat · 다시 클릭하면 닫혀요'
+            : '클릭하면 채팅창이 열려요'}
         </p>
 
         {/* ── Automation schedules ────────────────────────────────────────── */}

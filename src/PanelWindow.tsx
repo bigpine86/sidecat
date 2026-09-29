@@ -77,7 +77,7 @@ function ContextMenuPanel() {
   }
 
   const currentSize = config.petSize ?? 32
-  const currentMode = config.petMode ?? 'buddy'
+  const currentMode = config.petMode ?? 'wanderer'
 
   if (view === 'about') {
     return (
@@ -148,6 +148,15 @@ function ContextMenuPanel() {
         </div>
         <div style={styles.divider} />
 
+        <button
+          style={styles.item}
+          onClick={() => {
+            panelAction('chat')
+            close()
+          }}
+        >
+          💬 Chat
+        </button>
         <button style={styles.item} onClick={openSettings}>
           ⚙ Settings
         </button>

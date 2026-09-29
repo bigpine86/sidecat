@@ -49,6 +49,9 @@ pub struct AIConfig {
     // Minutes between proactive barks (cat talks first). `None`/0 = off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proactive_interval_min: Option<u32>,
+    // 'chat' (full window) or 'bark' (one-line speech bubble) on left-click.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub click_style: Option<String>,
 }
 
 impl Default for AIConfig {
@@ -69,6 +72,7 @@ impl Default for AIConfig {
             max_tokens: None,
             pet_size: Some(64),
             proactive_interval_min: None,
+            click_style: None,
         }
     }
 }

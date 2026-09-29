@@ -331,6 +331,11 @@ export default function App() {
           setSettingsOpen(true)
         } else if (action === 'select-pet') {
           setPetSelectorOpen(true)
+        } else if (action === 'chat') {
+          // In bark-mode this is the only route to the full chat window.
+          // A window event keeps this listener independent of openBubble's
+          // declaration order below.
+          window.dispatchEvent(new Event('sidecat:open-chat'))
         } else if (action.startsWith('pet-size:')) {
           const size = parseInt(action.split(':')[1], 10)
           if (!isNaN(size)) useConfigStore.getState().setPetSize(size)
@@ -546,6 +551,14 @@ export default function App() {
       savedPos.current = null
     }
   }, [])
+
+  // The context menu's Chat item routes here via a window event (declared
+  // above openBubble so the panel-action listener can stay earlier in file).
+  useEffect(() => {
+    const handler = () => void openBubble()
+    window.addEventListener('sidecat:open-chat', handler)
+    return () => window.removeEventListener('sidecat:open-chat', handler)
+  }, [openBubble])
 
   // ── Automation: scheduled agent tasks ────────────────────────────────────
   // schedules.json lives in ~/.sidecat — the omo agent's cwd — so "매일 8시에
@@ -943,6 +956,38 @@ export default function App() {
       return
     }
 
+    // Speech-bubble mode: petting makes the cat say one line in a small
+    // bubble instead of opening the full chat window — the original cute
+    // interaction. The full chat stays reachable via context menu → Chat.
+    if ((useConfigStore.getState().config.clickStyle ?? 'chat') === 'bark') {
+      // Instant feedback while the agent thinks.
+      if (availableAnimationsList.includes('awaken')) {
+        setClickWakeAnim('awaken')
+        if (clickWakeTimerRef.current) clearTimeout(clickWakeTimerRef.current)
+        clickWakeTimerRef.current = setTimeout(() => setClickWakeAnim(null), 350)
+      }
+      void (async () => {
+        let text: string | null
+        try {
+          text = await proactiveBark()
+        } catch {
+          text = null
+        }
+        if (!text) {
+          // No provider configured (or it failed) — the cat still answers
+          // with a canned quip so the pet never feels dead.
+          const canned = ['냥', '뭐 해?', '심심해…', '간식 내놔', '쓰다듬어줘', '지금 바빠']
+          text = canned[Math.floor(Math.random() * canned.length)]
+        }
+        announceQueueRef.current.push({
+          text,
+          actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+        })
+        tryFlushAnnounce()
+      })()
+      return
+    }
+
     const flashAwaken = Math.random() < 0.4 && availableAnimationsList.includes('awaken')
 
     if (flashAwaken) {
@@ -955,7 +1000,16 @@ export default function App() {
     } else {
       openBubble()
     }
-  }, [bubbleOpen, settingsOpen, openBubble, closeBubble, availableAnimationsList])
+  }, [
+    bubbleOpen,
+    settingsOpen,
+    openBubble,
+    closeBubble,
+    availableAnimationsList,
+    proactiveBark,
+    dismissAnnouncement,
+    tryFlushAnnounce,
+  ])
 
   const handleRightClick = useCallback(
     async (e: React.MouseEvent) => {

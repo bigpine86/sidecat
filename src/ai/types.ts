@@ -61,6 +61,10 @@ export type AIConfig = {
   // Minutes between proactive barks — the cat glances at the screen and says
   // something first. 0/undefined = never.
   proactiveIntervalMin?: number
+  // What a left-click on the cat does. 'chat' = full chat window;
+  // 'bark' = a small one-line speech bubble (real chat stays reachable via
+  // the context menu). Default 'chat'.
+  clickStyle?: 'chat' | 'bark'
 }
 
 export type Message = {
