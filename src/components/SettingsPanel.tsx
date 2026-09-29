@@ -18,7 +18,7 @@ import { loadSchedules, saveSchedules, type Schedule } from '../automation/sched
 
 const PANEL_W = 280
 const PANEL_H = 600
-const SPRITE_SIZE = 32
+const SPRITE_SIZE = 64
 
 const RESPONSE_LENGTH_OPTIONS: {
   key: MaxTokensPreset

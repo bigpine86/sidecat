@@ -30,7 +30,7 @@ export function isConfigured(config: AIConfig): boolean {
 const DEFAULT_CONFIG: AIConfig = {
   provider: 'omo',
   model: '',
-  petSize: 32,
+  petSize: 64,
   activePetId: 'classic-neko',
 }
 

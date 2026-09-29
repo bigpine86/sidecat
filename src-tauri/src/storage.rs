@@ -42,6 +42,10 @@ pub struct AIConfig {
     // in lib.rs / src/ai/types.ts. Surfaced as Short/Medium/Long in Settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
+    // Rendered sprite size in px. Upstream only declared this in the TS
+    // config, so a save/load round-trip dropped it; declare it here too.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pet_size: Option<u32>,
 }
 
 impl Default for AIConfig {
@@ -60,6 +64,7 @@ impl Default for AIConfig {
             onboarding_completed: None,
             ollama_auto_detected: None,
             max_tokens: None,
+            pet_size: Some(64),
         }
     }
 }

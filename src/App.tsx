@@ -126,7 +126,7 @@ function describeSendError(err: unknown, provider: string): string {
 
 export default function App() {
   const { config, isLoaded, loadConfig, setActivePetId } = useConfigStore()
-  const spriteSize = config.petSize ?? 32
+  const spriteSize = config.petSize ?? 64
   const spriteInsetX = Math.round((WIN_OPEN_W - spriteSize) / 2)
 
   useEffect(() => {
@@ -316,7 +316,7 @@ export default function App() {
 
           // Approximate taskbar height: 48 logical px
           const taskbarH = 48 * scale
-          const sz = useConfigStore.getState().config.petSize ?? 32
+          const sz = useConfigStore.getState().config.petSize ?? 64
 
           // Target Y: just above the taskbar
           const targetY = monY + monH - taskbarH - sz * scale
@@ -446,7 +446,7 @@ export default function App() {
     const win = getCurrentWindow()
     const [pos, monitor] = await Promise.all([win.outerPosition(), currentMonitor()])
 
-    const sz = useConfigStore.getState().config.petSize ?? 32
+    const sz = useConfigStore.getState().config.petSize ?? 64
     const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
 
     // Physical bounds of the active monitor
@@ -489,7 +489,7 @@ export default function App() {
     const win = getCurrentWindow()
     if (savedPos.current) {
       const { x, y } = savedPos.current // physical coords
-      const sz = useConfigStore.getState().config.petSize ?? 32
+      const sz = useConfigStore.getState().config.petSize ?? 64
       await invoke('resize_window', { width: sz, height: sz })
       await win.setPosition(new PhysicalPosition(x, y))
       savedPos.current = null
@@ -658,7 +658,7 @@ export default function App() {
           const monY = monitor?.position.y ?? 0
           const monW = monitor?.size.width ?? window.screen.width * scale
           const monH = monitor?.size.height ?? window.screen.height * scale
-          const sz = useConfigStore.getState().config.petSize ?? 32
+          const sz = useConfigStore.getState().config.petSize ?? 64
 
           // Same approximations the notification handler uses.
           const taskbarH = 48 * scale
@@ -894,7 +894,7 @@ export default function App() {
       const resume = async () => {
         const [pos, monitor] = await Promise.all([win.outerPosition(), currentMonitor()])
         const scale = monitor?.scaleFactor ?? window.devicePixelRatio ?? 1
-        const sz = useConfigStore.getState().config.petSize ?? 32
+        const sz = useConfigStore.getState().config.petSize ?? 64
         const insetPhysX = Math.round(((WIN_OPEN_W - sz) / 2) * scale)
         // Sprite physical top-left within the expanded window
         const spritePhysX = pos.x + insetPhysX

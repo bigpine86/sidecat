@@ -637,6 +637,8 @@ pub fn run() {
             }
             window.show().ok();
 
+
+
             // ── Background notification monitor ────────────────────────────
             // Detects when a non-NekoAI window gains focus while the user is
             // idle (no mouse/keyboard input), which strongly indicates a system
