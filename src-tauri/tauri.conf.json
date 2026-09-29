@@ -32,8 +32,8 @@
       {
         "label": "house",
         "title": "Sidecat House",
-        "width": 64,
-        "height": 64,
+        "width": 56,
+        "height": 56,
         "resizable": false,
         "fullscreen": false,
         "decorations": false,

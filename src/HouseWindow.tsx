@@ -6,7 +6,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useConfigStore } from './store/configStore'
 import { IS_LINUX } from './utils/platform'
 
-const HOUSE_SIZE = 64
+const HOUSE_SIZE = 56
 
 export function HouseWindow() {
   const [placed, setPlaced] = useState(false)
@@ -71,13 +71,23 @@ export function HouseWindow() {
     positionHouse()
   }, [])
 
-  // Send pet home when the house is clicked
+  // Left-click opens Settings — the house is the app's front door.
+  // Right-click still whistles the cat home (kept from the original
+  // click behaviour because it's too cute to delete).
   const handleClick = useCallback(async () => {
-    if (!housePos) return
-    await invoke('panel_action', {
-      action: `house_pos:${housePos.x},${housePos.y}`,
-    }).catch(console.error)
-  }, [housePos])
+    await invoke('panel_action', { action: 'settings' }).catch(console.error)
+  }, [])
+
+  const handleRightClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault()
+      if (!housePos) return
+      await invoke('panel_action', {
+        action: `house_pos:${housePos.x},${housePos.y}`,
+      }).catch(console.error)
+    },
+    [housePos]
+  )
 
   // Extract the alpha channel of the house PNG and push it as a GTK shape
   // mask so the magenta chroma-key fill becomes invisible. Runs whenever the
@@ -124,16 +134,16 @@ export function HouseWindow() {
     if (!ctx) return
     // Colour irrelevant; only alpha contributes to the mask.
     ctx.fillStyle = '#fff'
-    // Roof: triangle 56w × 24h, apex at top, anchored 4px from top margin to
+    // Roof: triangle ~50w × 22h, apex at top, anchored 3px from top margin to
     // match the bottom-aligned flex layout below (justifyContent: flex-end).
     ctx.beginPath()
-    ctx.moveTo(32, 4)
-    ctx.lineTo(60, 28)
-    ctx.lineTo(4, 28)
+    ctx.moveTo(28, 3)
+    ctx.lineTo(53, 25)
+    ctx.lineTo(3, 25)
     ctx.closePath()
     ctx.fill()
-    // Body: 48w × 36h, 2px overlap with the roof base.
-    ctx.fillRect(8, 26, 48, 36)
+    // Body: 42w × 32h, 1px overlap with the roof base.
+    ctx.fillRect(7, 24, 42, 32)
     try {
       const data = ctx.getImageData(0, 0, HOUSE_SIZE, HOUSE_SIZE).data
       const mask = new Uint8Array(HOUSE_SIZE * HOUSE_SIZE)
@@ -170,7 +180,12 @@ export function HouseWindow() {
   if (!placed) return null
 
   return (
-    <div style={styles.root} onClick={handleClick} title="Click to bring pet home">
+    <div
+      style={styles.root}
+      onClick={handleClick}
+      onContextMenu={handleRightClick}
+      title="클릭: 설정 · 우클릭: 고양이 집으로"
+    >
       {imgFailed ? (
         // CSS fallback when the active pet has no house.png
         <>
@@ -214,15 +229,15 @@ const styles: Record<string, React.CSSProperties> = {
   roof: {
     width: 0,
     height: 0,
-    borderLeft: '28px solid transparent',
-    borderRight: '28px solid transparent',
-    borderBottom: '24px solid #d45d5d',
+    borderLeft: '25px solid transparent',
+    borderRight: '25px solid transparent',
+    borderBottom: '22px solid #d45d5d',
     marginBottom: '-2px',
     zIndex: 2,
   },
   body: {
-    width: 48,
-    height: 36,
+    width: 42,
+    height: 32,
     backgroundColor: '#e6d5b8',
     border: '2px solid #8b5a2b',
     borderRadius: '2px',
@@ -233,8 +248,8 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 1,
   },
   door: {
-    width: 16,
-    height: 24,
+    width: 14,
+    height: 22,
     backgroundColor: '#8b5a2b',
     borderTopLeftRadius: '6px',
     borderTopRightRadius: '6px',

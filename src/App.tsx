@@ -739,7 +739,7 @@ export default function App() {
 
           // Same approximations the notification handler uses.
           const taskbarH = 48 * scale
-          const houseW = 64 * scale
+          const houseW = 56 * scale
           const bottomY = Math.round(monY + monH - taskbarH - sz * scale)
           // Pet starts immediately to the left of the house with a small gap.
           const startX = Math.round(monX + monW - houseW - sz * scale - 8 * scale)
