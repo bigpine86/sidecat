@@ -46,13 +46,14 @@ pub struct AIConfig {
 
 impl Default for AIConfig {
     fn default() -> Self {
-        // Gemini is the default provider because aistudio.google.com offers a
-        // free tier with no credit card — minimal onboarding friction. The TS
-        // default in src/store/configStore.ts must mirror this.
+        // Sidecat: omo is the default provider — it runs the agent backend
+        // (tools, browser, skills) and carries its own auth, so no apiKey
+        // is needed here. The TS default in src/store/configStore.ts must
+        // mirror this.
         AIConfig {
-            provider: "gemini".to_string(),
+            provider: "omo".to_string(),
             api_key: None,
-            model: "gemini-2.5-flash".to_string(),
+            model: String::new(),
             base_url: None,
             pet_mode: None,
             active_pet_id: Some("classic-neko".to_string()),

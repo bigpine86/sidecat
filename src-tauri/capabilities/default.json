@@ -23,6 +23,122 @@
     "shell:allow-open",
     "opener:allow-open-url",
     {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-bun",
+          "cmd": "$HOME/.bun/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-local",
+          "cmd": "$HOME/.local/bin/omo",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-bun",
+          "cmd": "$HOME/.bun/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-local",
+          "cmd": "$HOME/.local/bin/omo",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-stdin-write",
+      "allow": [
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-bun",
+          "cmd": "$HOME/.bun/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-local",
+          "cmd": "$HOME/.local/bin/omo",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        {
+          "name": "omo",
+          "cmd": "omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-bun",
+          "cmd": "$HOME/.bun/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-homebrew",
+          "cmd": "/opt/homebrew/bin/omo",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "omo-local",
+          "cmd": "$HOME/.local/bin/omo",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-read-text-file",
       "allow": [
         { "path": "$RESOURCE/**" },

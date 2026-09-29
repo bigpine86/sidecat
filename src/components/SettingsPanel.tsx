@@ -44,6 +44,7 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; placeholder: string }> 
   openai: { model: 'gpt-4o-mini', placeholder: 'sk-…' },
   ollama: { model: 'llama3', placeholder: '(not required)' },
   nvidia: { model: 'meta/llama-3.1-8b-instruct', placeholder: 'nvapi-…' },
+  omo: { model: '(omo가 관리)', placeholder: '(omo 인증 사용)' },
 }
 
 // External help links — surfaced when the panel opens without working
@@ -55,6 +56,7 @@ const PROVIDER_HELP: Record<string, { url: string; label: string }> = {
   gemini: { url: 'https://aistudio.google.com/apikey', label: 'Obtener API key gratis' },
   nvidia: { url: 'https://build.nvidia.com/', label: 'Obtener API key' },
   ollama: { url: 'https://ollama.com/download', label: 'Descargar Ollama' },
+  omo: { url: 'https://omo.run', label: 'omo 설치/로그인 안내' },
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -236,7 +238,8 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
   if (!isOpen) return null
 
   const isOllama = config.provider === 'ollama'
-  const hasCredentials = isOllama || !!config.apiKey
+  const isOmo = config.provider === 'omo'
+  const hasCredentials = isOllama || isOmo || !!config.apiKey
   const status: 'connected' | 'untested' | 'disconnected' = !hasCredentials
     ? 'disconnected'
     : testStatus === 'ok'
@@ -281,20 +284,25 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
           <option value="openai">OpenAI (GPT)</option>
           <option value="ollama">Ollama (local)</option>
           <option value="nvidia">NVIDIA NIM</option>
+          <option value="omo">omo (에이전트 — 브라우저·도구 사용)</option>
         </select>
 
-        {/* ── Model ───────────────────────────────────────────────────────── */}
-        <label style={styles.label}>Model</label>
-        <input
-          style={styles.input}
-          type="text"
-          value={config.model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
-        />
+        {/* ── Model (hidden for omo — 모델 선택은 omo가 관리) ──────────────── */}
+        {!isOmo && (
+          <>
+            <label style={styles.label}>Model</label>
+            <input
+              style={styles.input}
+              type="text"
+              value={config.model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
+            />
+          </>
+        )}
 
-        {/* ── API key (hidden for Ollama) ──────────────────────────────────── */}
-        {!isOllama && (
+        {/* ── API key (hidden for Ollama/omo) ──────────────────────────────── */}
+        {!isOllama && !isOmo && (
           <>
             <label style={styles.label}>API Key</label>
             <div style={styles.keyRow}>

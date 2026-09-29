@@ -6,6 +6,7 @@ import { OpenAIProvider } from './providers/openai'
 import { OllamaProvider } from './providers/ollama'
 import { GeminiProvider } from './providers/gemini'
 import { NvidiaProvider } from './providers/nvidia'
+import { OmoProvider } from './providers/omo'
 
 export function createAIProvider(config: AIConfig): AIProvider {
   const tokens = config.maxTokens
@@ -20,6 +21,8 @@ export function createAIProvider(config: AIConfig): AIProvider {
       return new GeminiProvider(config.apiKey ?? '', config.model, tokens)
     case 'nvidia':
       return new NvidiaProvider(config.apiKey ?? '', config.model, tokens)
+    case 'omo':
+      return new OmoProvider()
     default:
       throw new Error(`Unknown AI provider: ${(config as AIConfig).provider}`)
   }

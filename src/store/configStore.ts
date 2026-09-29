@@ -20,14 +20,16 @@ interface ConfigStore {
 }
 
 export function isConfigured(config: AIConfig): boolean {
-  return config.provider === 'ollama' ? true : !!config.apiKey
+  // ollama runs locally; omo carries its own auth in ~/.omo — neither needs an
+  // apiKey in this config.
+  return config.provider === 'ollama' || config.provider === 'omo' ? true : !!config.apiKey
 }
 
 // Mirror of `AIConfig::default()` in src-tauri/src/storage.rs — keep in sync.
-// Gemini is the default for free-tier onboarding friction reasons.
+// Sidecat: omo is the default provider — agent backend with its own auth.
 const DEFAULT_CONFIG: AIConfig = {
-  provider: 'gemini',
-  model: 'gemini-2.5-flash',
+  provider: 'omo',
+  model: '',
   petSize: 32,
   activePetId: 'classic-neko',
 }
