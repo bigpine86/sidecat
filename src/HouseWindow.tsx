@@ -71,22 +71,46 @@ export function HouseWindow() {
     positionHouse()
   }, [])
 
-  // Left-click opens Settings — the house is the app's front door.
-  // Right-click still whistles the cat home (kept from the original
-  // click behaviour because it's too cute to delete).
-  const handleClick = useCallback(async () => {
+  // Gestures (user-requested mapping): right-click opens Settings —
+  // the house is the app's front door. Double-click knocks on the door
+  // and whistles the cat home. A plain left-click also opens Settings,
+  // but waits a beat first so a double-click doesn't pop settings open
+  // AND summon the cat at once.
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const openSettings = useCallback(async () => {
     await invoke('panel_action', { action: 'settings' }).catch(console.error)
   }, [])
 
+  const callCatHome = useCallback(async () => {
+    if (!housePos) return
+    await invoke('panel_action', {
+      action: `house_pos:${housePos.x},${housePos.y}`,
+    }).catch(console.error)
+  }, [housePos])
+
+  const handleClick = useCallback(() => {
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null
+      void openSettings()
+    }, 260)
+  }, [openSettings])
+
+  const handleDoubleClick = useCallback(() => {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+    }
+    void callCatHome()
+  }, [callCatHome])
+
   const handleRightClick = useCallback(
-    async (e: React.MouseEvent) => {
+    (e: React.MouseEvent) => {
       e.preventDefault()
-      if (!housePos) return
-      await invoke('panel_action', {
-        action: `house_pos:${housePos.x},${housePos.y}`,
-      }).catch(console.error)
+      void openSettings()
     },
-    [housePos]
+    [openSettings]
   )
 
   // Extract the alpha channel of the house PNG and push it as a GTK shape
@@ -183,8 +207,9 @@ export function HouseWindow() {
     <div
       style={styles.root}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onContextMenu={handleRightClick}
-      title="클릭: 설정 · 우클릭: 고양이 집으로"
+      title="클릭/우클릭: 설정 · 더블클릭: 고양이 집으로"
     >
       {imgFailed ? (
         // CSS fallback when the active pet has no house.png
