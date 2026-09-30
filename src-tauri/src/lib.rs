@@ -38,6 +38,17 @@ struct Vec2 {
 
 // ─── Cursor position ──────────────────────────────────────────────────────────
 
+// The frontend calls this once its first frame has painted. Showing a
+// transparent macOS window before the webview's first commit can wedge the
+// window's backing store — the page keeps painting (canvas has pixels,
+// DOM is live) but nothing reaches the screen until a reload.
+#[tauri::command]
+fn main_window_ready(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        w.show().ok();
+    }
+}
+
 #[tauri::command]
 fn get_cursor_pos(app: tauri::AppHandle, tracker: tauri::State<'_, CursorTrackerState>) -> Vec2 {
     use mouse_position::mouse_position::Mouse;
@@ -640,9 +651,20 @@ pub fn run() {
                 let y = (mh - 112.0 * scale) as i32;
                 window.set_position(tauri::PhysicalPosition::new(x, y)).ok();
             }
-            window.show().ok();
-
-
+            // Do NOT show the window here: on macOS, calling show() before the
+            // webview's first paint can wedge the transparent window's backing
+            // store (webview keeps painting but pixels never composite). The
+            // frontend invokes `main_window_ready` after its first frame;
+            // fall back to a timed show in case mount fails silently.
+            {
+                let w = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(12));
+                    if matches!(w.is_visible(), Ok(false)) {
+                        w.show().ok();
+                    }
+                });
+            }
 
             // ── Background notification monitor ────────────────────────────
             // Detects when a non-NekoAI window gains focus while the user is
@@ -673,8 +695,8 @@ pub fn run() {
 
                         if let Some(win) = desktop_monitor::get_active_window() {
                             let proc = win.process_name.to_lowercase();
-                            // Skip our own windows
-                            if proc.contains("nekoai") || proc.is_empty() {
+                            // Skip our own windows (binary renamed NekoAI → Sidecat)
+                            if proc.contains("nekoai") || proc.contains("sidecat") || proc.is_empty() {
                                 continue;
                             }
                             if !win.title.is_empty() && win.title != prev_title {
@@ -828,6 +850,7 @@ pub fn run() {
             enable_autostart,
             disable_autostart,
             open_url,
+            main_window_ready,
             nvidia_chat,
             ollama_detect,
             ollama_chat,

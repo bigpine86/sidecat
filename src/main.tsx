@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { invoke } from '@tauri-apps/api/core'
 import App from './App'
 import { PanelWindow } from './PanelWindow'
 import { HouseWindow } from './HouseWindow'
@@ -27,3 +28,15 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     {route === 'house' ? <HouseWindow /> : isPanel ? <PanelWindow route={route} /> : <App />}
   </React.StrictMode>
 )
+
+// Tell the native side the main webview has painted its first frame so it can
+// safely show the window. Showing a transparent macOS window before the first
+// commit can leave its backing store permanently blank, so lib.rs holds
+// `visible:false` until this arrives (with a timed fallback).
+if (!route) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      invoke('main_window_ready').catch(() => {})
+    })
+  })
+}

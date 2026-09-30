@@ -66,8 +66,17 @@ function ContextMenuPanel() {
 
   const panelAction = (action: string) => invoke('panel_action', { action }).catch(console.error)
 
-  const openSettings = () => panelAction('settings')
-  const openSelectPet = () => panelAction('select-pet')
+  // Settings / pet selector open inside the main window now, so the menu
+  // must close after forwarding the action — otherwise the "Sidecat" menu
+  // card stays floating next to the panel it opened.
+  const openSettings = () => {
+    panelAction('settings')
+    close()
+  }
+  const openSelectPet = () => {
+    panelAction('select-pet')
+    close()
+  }
   const quit = () => invoke('quit_app').catch(console.error)
   const openUrl = (url: string) => invoke('open_url', { url }).catch(console.error)
 
