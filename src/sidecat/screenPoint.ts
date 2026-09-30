@@ -1,18 +1,19 @@
-// ── Sidecat zone: cross-monitor coordinate resolution ─────────────────────────
+// ── Sidecat zone: cross-monitor positioning ───────────────────────────────────
 // Mixed-DPI multi-monitor setups (e.g. 2x Retina laptop + 1x external) make
-// physical-pixel position math ambiguous: get_cursor_pos scales CGEvent's
-// logical points by the PRIMARY monitor's scale factor, while a window's
-// currentMonitor() bounds are physical in ITS OWN scale. Comparing them mixes
-// coordinate spaces — panels land off-screen or clipped on the second display.
+// window positioning treacherous: get_cursor_pos scales CGEvent's logical
+// points by the PRIMARY monitor's scale, monitor bounds arrive in EACH
+// monitor's own physical scale, and PhysicalPosition→point conversion divides
+// by the moved window's CURRENT monitor scale. Mixing these spaces put panels
+// off-screen or clipped on the second display.
 //
-// The unambiguous space is GLOBAL LOGICAL POINTS. Dividing the Rust cursor
-// reading by the primary scale always yields it, on any monitor. These helpers
-// resolve "where is the cursor / which monitor is it on" in that space, so
-// callers clamp in logical coords and position via LogicalPosition (global
-// points, scale-independent).
+// The convention that provably round-trips in this app (openBubble, pet
+// movement): PhysicalPosition(p) lands at global point p / winScale, where
+// winScale is the scale factor of the monitor the window currently sits on.
+// So positioning the window on ITS OWN monitor is always safe — encode the
+// logical destination as logical × winScale. These helpers stay inside that
+// guaranteed space: panels open centred on the cat's own monitor.
 
-import { invoke } from '@tauri-apps/api/core'
-import { availableMonitors, currentMonitor, primaryMonitor } from '@tauri-apps/api/window'
+import { currentMonitor } from '@tauri-apps/api/window'
 
 export interface LogicalRect {
   x: number
@@ -21,52 +22,42 @@ export interface LogicalRect {
   h: number
 }
 
-export interface CursorPlacement {
-  /** Cursor in global logical points. */
-  x: number
-  y: number
-  /** Logical bounds of the monitor containing the cursor (fallback: cat's monitor, then primary screen guess). */
+export interface MonitorPlacement {
+  /** Logical bounds of the monitor containing the cat window. */
   mon: LogicalRect
-  /** Primary monitor scale — multiply logical coords by this to get the
-   *  "primary-scaled physical" numbers that PhysicalPosition/invoke paths
-   *  already speak elsewhere in the codebase. */
-  primaryScale: number
+  /** Scale factor of the cat's monitor — multiply logical coords by this to
+   *  get the PhysicalPosition value that lands there. */
+  winScale: number
 }
 
-function toLogicalRect(m: {
-  position: { x: number; y: number }
-  size: { width: number; height: number }
-  scaleFactor: number
-}): LogicalRect {
+export async function catMonitorPlacement(): Promise<MonitorPlacement> {
+  const catMon = await currentMonitor()
+  if (!catMon) {
+    return {
+      mon: { x: 0, y: 0, w: window.screen.availWidth, h: window.screen.availHeight },
+      winScale: window.devicePixelRatio || 1,
+    }
+  }
   return {
-    x: m.position.x / m.scaleFactor,
-    y: m.position.y / m.scaleFactor,
-    w: m.size.width / m.scaleFactor,
-    h: m.size.height / m.scaleFactor,
+    mon: {
+      x: catMon.position.x / catMon.scaleFactor,
+      y: catMon.position.y / catMon.scaleFactor,
+      w: catMon.size.width / catMon.scaleFactor,
+      h: catMon.size.height / catMon.scaleFactor,
+    },
+    winScale: catMon.scaleFactor,
   }
 }
 
-export async function cursorLogicalPoint(): Promise<CursorPlacement> {
-  const [cursor, allMons, primary, catMon] = await Promise.all([
-    invoke<{ x: number; y: number }>('get_cursor_pos'),
-    availableMonitors(),
-    primaryMonitor(),
-    currentMonitor(),
-  ])
-
-  const primaryScale = primary?.scaleFactor ?? catMon?.scaleFactor ?? window.devicePixelRatio ?? 1
-  const x = cursor.x / primaryScale
-  const y = cursor.y / primaryScale
-
-  const mon = allMons
-    .map(toLogicalRect)
-    .find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) ??
-    (catMon ? toLogicalRect(catMon) : null) ?? {
-      x: 0,
-      y: 0,
-      w: window.screen.availWidth,
-      h: window.screen.availHeight,
-    }
-
-  return { x, y, mon, primaryScale }
+/** Centre a w×h logical panel on the cat's monitor; returns the global
+ *  physical-pixel position to feed PhysicalPosition/set_position. */
+export function centeredPanelPosition(
+  place: MonitorPlacement,
+  w: number,
+  h: number
+): { x: number; y: number } {
+  const { mon, winScale } = place
+  const xLog = mon.x + Math.max(0, (mon.w - w) / 2)
+  const yLog = mon.y + Math.max(0, (mon.h - h) / 2)
+  return { x: Math.round(xLog * winScale), y: Math.round(yLog * winScale) }
 }

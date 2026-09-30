@@ -11,7 +11,7 @@ import { SpeechBubble, type AnnouncementContent, type Message } from './componen
 import { SidecatSettings } from './sidecat/SidecatSettings'
 import { beginCatGrab } from './sidecat/catGrab'
 import { proactiveBark } from './sidecat/proactiveBark'
-import { cursorLogicalPoint } from './sidecat/screenPoint'
+import { catMonitorPlacement } from './sidecat/screenPoint'
 import { PetSelector } from './components/PetSelector'
 import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
@@ -970,21 +970,26 @@ export default function App() {
       e.preventDefault()
       if (bubbleOpen || settingsOpen || petSelectorOpen) return
 
-      // Position the panel near the cursor on whichever monitor the pet is on,
-      // in the opposite quadrant so it never goes off that screen.
+      // Position the panel beside the pet (the right-click cursor sits on the
+      // sprite), clamped inside the pet's own monitor — the only coordinate
+      // space that round-trips reliably on mixed-DPI setups (screenPoint.ts).
       const MENU_W = 190
       const MENU_H = 260
       try {
-        // Sidecat seam: resolve cursor + its monitor in global logical points
-        // (screenPoint.ts — mixed-DPI physical math clipped/misplaced menus).
-        const cur = await cursorLogicalPoint()
-        const { mon } = cur
+        const win = getCurrentWindow()
+        const [pos, place] = await Promise.all([win.outerPosition(), catMonitorPlacement()])
+        const { mon, winScale } = place
 
-        const openBelow = cur.y - mon.y < mon.h / 2
-        const openRight = cur.x - mon.x < mon.w / 2
+        // Cat top-left in global logical points
+        const catX = pos.x / winScale
+        const catY = pos.y / winScale
+        const sz = spriteSize
 
-        let x = cur.x + (openRight ? 0 : -MENU_W)
-        let y = cur.y + (openBelow ? 0 : -MENU_H)
+        const openBelow = catY - mon.y < mon.h / 2
+        const openRight = catX - mon.x < mon.w / 2
+
+        let x = openRight ? catX + sz + 4 : catX - MENU_W - 4
+        let y = openBelow ? catY : catY + sz - MENU_H
         x = Math.max(mon.x, Math.min(x, mon.x + mon.w - MENU_W))
         y = Math.max(mon.y, Math.min(y, mon.y + mon.h - MENU_H))
 
@@ -1000,7 +1005,7 @@ export default function App() {
         console.error('[NekoAI] open context menu failed:', err)
       }
     },
-    [bubbleOpen, settingsOpen, petSelectorOpen]
+    [bubbleOpen, settingsOpen, petSelectorOpen, spriteSize]
   )
 
   const handleMouseDown = useCallback(

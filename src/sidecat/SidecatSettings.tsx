@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { PhysicalPosition, LogicalPosition } from '@tauri-apps/api/dpi'
-import { cursorLogicalPoint } from './screenPoint'
+import { PhysicalPosition } from '@tauri-apps/api/dpi'
+import { catMonitorPlacement, centeredPanelPosition } from './screenPoint'
 import { useConfigStore } from '../store/configStore'
 import { createAIProvider, buildContextBlock } from '../ai'
 import {
@@ -151,27 +151,16 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
 
     async function expand() {
       try {
-        const [pos, cur] = await Promise.all([win.outerPosition(), cursorLogicalPoint()])
+        const [pos, place] = await Promise.all([win.outerPosition(), catMonitorPlacement()])
         if (cancelled) return
         setSavedPos({ x: pos.x, y: pos.y })
 
-        // Quadrant + clamp in global logical points on the monitor that
-        // actually holds the cursor (see screenPoint.ts for why physical
-        // pixels misplace the panel on mixed-DPI setups).
-        const { mon } = cur
-        const openBelow = cur.y - mon.y < mon.h / 2
-        const openRight = cur.x - mon.x < mon.w / 2
-
-        const x = Math.max(
-          mon.x,
-          Math.min(cur.x + (openRight ? 0 : -PANEL_W), mon.x + mon.w - PANEL_W)
-        )
-        const y = Math.max(
-          mon.y,
-          Math.min(cur.y + (openBelow ? 0 : -PANEL_H), mon.y + mon.h - PANEL_H)
-        )
-
-        await win.setPosition(new LogicalPosition(Math.round(x), Math.round(y)))
+        // Centre the panel on the cat's own monitor — the only coordinate
+        // space that round-trips reliably (see screenPoint.ts). Cursor-based
+        // placement mixed primary-scaled cursor coords with the cat's monitor
+        // bounds and clipped/misplaced the panel on mixed-DPI setups.
+        const p = centeredPanelPosition(place, PANEL_W, PANEL_H)
+        await win.setPosition(new PhysicalPosition(p.x, p.y))
         await invoke('resize_window', { width: PANEL_W, height: PANEL_H })
       } catch (err) {
         console.error('[SettingsPanel] expand error:', err)
@@ -288,406 +277,416 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
           </button>
         </div>
 
-        {/* ── Status badge ────────────────────────────────────────────────── */}
-        <div
-          style={{
-            ...styles.statusBadge,
-            ...(status === 'connected' ? styles.statusOk : {}),
-            ...(status === 'untested' ? styles.statusWarn : {}),
-            ...(status === 'disconnected' ? styles.statusError : {}),
-          }}
-        >
-          {status === 'connected' && '🟢 AI 연결됨'}
-          {status === 'untested' && '🟡 미확인'}
-          {status === 'disconnected' && '🔴 AI 연결 안 됨'}
-        </div>
+        {/* Body scrolls; header (with ✕) stays pinned so the panel is never
+            trapped in an unclosable state when content overflows. */}
+        <div style={styles.body}>
+          {/* ── Status badge ────────────────────────────────────────────────── */}
+          <div
+            style={{
+              ...styles.statusBadge,
+              ...(status === 'connected' ? styles.statusOk : {}),
+              ...(status === 'untested' ? styles.statusWarn : {}),
+              ...(status === 'disconnected' ? styles.statusError : {}),
+            }}
+          >
+            {status === 'connected' && '🟢 AI 연결됨'}
+            {status === 'untested' && '🟡 미확인'}
+            {status === 'disconnected' && '🔴 AI 연결 안 됨'}
+          </div>
 
-        {/* ── Provider ────────────────────────────────────────────────────── */}
-        <label style={styles.label}>AI 제공자</label>
-        <select
-          style={styles.select}
-          value={config.provider}
-          onChange={(e) => handleProviderChange(e.target.value)}
-        >
-          <option value="gemini">Google (Gemini)</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="openai">OpenAI (GPT)</option>
-          <option value="ollama">Ollama (로컬)</option>
-          <option value="nvidia">NVIDIA NIM</option>
-          <option value="omo">omo (에이전트 — 브라우저·도구 사용)</option>
-        </select>
+          {/* ── Provider ────────────────────────────────────────────────────── */}
+          <label style={styles.label}>AI 제공자</label>
+          <select
+            style={styles.select}
+            value={config.provider}
+            onChange={(e) => handleProviderChange(e.target.value)}
+          >
+            <option value="gemini">Google (Gemini)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="ollama">Ollama (로컬)</option>
+            <option value="nvidia">NVIDIA NIM</option>
+            <option value="omo">omo (에이전트 — 브라우저·도구 사용)</option>
+          </select>
 
-        {/* ── Model (hidden for omo — 모델 선택은 omo가 관리) ──────────────── */}
-        {!isOmo && (
-          <>
-            <label style={styles.label}>모델</label>
-            <input
-              style={styles.input}
-              type="text"
-              value={config.model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
-            />
-          </>
-        )}
-
-        {/* ── API key (hidden for Ollama/omo) ──────────────────────────────── */}
-        {!isOllama && !isOmo && (
-          <>
-            <label style={styles.label}>API 키</label>
-            <div style={styles.keyRow}>
+          {/* ── Model (hidden for omo — 모델 선택은 omo가 관리) ──────────────── */}
+          {!isOmo && (
+            <>
+              <label style={styles.label}>모델</label>
               <input
-                style={{ ...styles.input, flex: 1 }}
-                type={showKey ? 'text' : 'password'}
-                value={config.apiKey ?? ''}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={PROVIDER_DEFAULTS[config.provider]?.placeholder ?? ''}
-                autoComplete="off"
+                style={styles.input}
+                type="text"
+                value={config.model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={PROVIDER_DEFAULTS[config.provider]?.model ?? ''}
               />
-              <button
-                style={styles.eyeBtn}
-                onClick={() => setShowKey((v) => !v)}
-                title={showKey ? '숨기기' : '보이기'}
-              >
-                {showKey ? '🙈' : '👁'}
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {/* ── Ollama base URL ──────────────────────────────────────────────── */}
-        {isOllama && (
-          <>
-            <label style={styles.label}>서버 주소</label>
-            <input
-              style={styles.input}
-              type="text"
-              value={config.baseUrl ?? 'http://localhost:11434'}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="http://localhost:11434"
-            />
-          </>
-        )}
-
-        {/* ── Helper link (only when credentials missing) ─────────────────── */}
-        {!hasCredentials && help && (
-          <button
-            style={styles.helperLink}
-            onClick={() => invoke('open_url', { url: help.url })}
-            title={help.url}
-          >
-            ↗ {help.label}
-          </button>
-        )}
-
-        {/* ── User name ───────────────────────────────────────────────────── */}
-        <label style={styles.label}>이름 (선택)</label>
-        <input
-          style={styles.input}
-          type="text"
-          value={userName}
-          onChange={(e) => setUserName(e.target.value)}
-          onBlur={handleUserNameBlur}
-          placeholder="예: 한솔"
-        />
-
-        {/* ── Response length ─────────────────────────────────────────────── */}
-        <label style={styles.label}>답변 길이</label>
-        <div style={styles.tokenRow}>
-          {RESPONSE_LENGTH_OPTIONS.map(({ key, label, hint }) => {
-            const active = maxTokensPreset(config.maxTokens) === key
-            return (
-              <button
-                key={key}
-                style={{
-                  ...styles.tokenBtn,
-                  ...(active ? styles.tokenBtnActive : {}),
-                }}
-                onClick={() => {
-                  // Named presets persist directly; the Custom chip just
-                  // focuses the inline input below so the user can type a
-                  // value (no preset to persist for 'custom').
-                  if (key === 'custom') {
-                    customInputRef.current?.focus()
-                    customInputRef.current?.select()
-                  } else {
-                    void setMaxTokens(MAX_TOKENS_PRESETS[key])
-                  }
-                }}
-                title={hint}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
-        <div style={styles.customRow}>
-          <input
-            ref={customInputRef}
-            style={{
-              ...styles.customInput,
-              ...(maxTokensPreset(config.maxTokens) === 'custom' ? styles.customInputActive : {}),
-            }}
-            type="number"
-            inputMode="numeric"
-            min={MAX_TOKENS_BOUNDS.min}
-            max={MAX_TOKENS_BOUNDS.max}
-            step={32}
-            value={customDraft}
-            onChange={(e) => setCustomDraft(e.target.value)}
-            onBlur={commitCustomTokens}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                commitCustomTokens()
-                customInputRef.current?.blur()
-              }
-            }}
-            aria-label="답변 길이 직접 입력 (토큰)"
-          />
-          <span style={styles.customUnit}>토큰</span>
-        </div>
-        <p style={styles.tokenHint}>
-          {maxTokensPreset(config.maxTokens) === 'custom'
-            ? `직접 입력 · ${config.maxTokens} 토큰`
-            : RESPONSE_LENGTH_OPTIONS.find((o) => o.key === maxTokensPreset(config.maxTokens))
-                ?.hint}
-        </p>
-
-        {/* ── Cat behaviour mode ──────────────────────────────────────────── */}
-        <div style={styles.divider} />
-        <label style={styles.label}>고양이 행동 모드</label>
-        <div style={styles.tokenRow}>
-          <button
-            style={{
-              ...styles.tokenBtn,
-              ...((config.petMode ?? 'wanderer') === 'wanderer' ? styles.tokenBtnActive : {}),
-            }}
-            onClick={() => void setPetMode('wanderer')}
-            title="화면 가장자리를 따라 노는 자율 배회 — 작업을 덜 가림"
-          >
-            자유 배회
-          </button>
-          <button
-            style={{
-              ...styles.tokenBtn,
-              ...(config.petMode === 'buddy' ? styles.tokenBtnActive : {}),
-            }}
-            onClick={() => void setPetMode('buddy')}
-            title="마우스 커서를 따라다님"
-          >
-            커서 추적
-          </button>
-        </div>
-        <p style={styles.tokenHint}>
-          {(config.petMode ?? 'wanderer') === 'wanderer'
-            ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
-            : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
-        </p>
-
-        {/* ── Monitor roaming scope (wanderer only) ───────────────────────── */}
-        {(config.petMode ?? 'wanderer') === 'wanderer' && (
-          <>
-            <label style={styles.label}>모니터 활동 범위</label>
-            <div style={styles.tokenRow}>
-              {(
-                [
-                  { scope: 'free', label: '전체 모니터', title: '모든 모니터의 가장자리를 누벼요' },
-                  {
-                    scope: 'single',
-                    label: '한 화면만',
-                    title: '지금 있는 모니터 안에서만 놀아요',
-                  },
-                  {
-                    scope: 'home',
-                    label: '주 화면 복귀',
-                    title: '멀리 가도 알아서 주 모니터로 돌아와요',
-                  },
-                ] as const
-              ).map(({ scope, label, title }) => (
+          {/* ── API key (hidden for Ollama/omo) ──────────────────────────────── */}
+          {!isOllama && !isOmo && (
+            <>
+              <label style={styles.label}>API 키</label>
+              <div style={styles.keyRow}>
+                <input
+                  style={{ ...styles.input, flex: 1 }}
+                  type={showKey ? 'text' : 'password'}
+                  value={config.apiKey ?? ''}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={PROVIDER_DEFAULTS[config.provider]?.placeholder ?? ''}
+                  autoComplete="off"
+                />
                 <button
-                  key={scope}
+                  style={styles.eyeBtn}
+                  onClick={() => setShowKey((v) => !v)}
+                  title={showKey ? '숨기기' : '보이기'}
+                >
+                  {showKey ? '🙈' : '👁'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ── Ollama base URL ──────────────────────────────────────────────── */}
+          {isOllama && (
+            <>
+              <label style={styles.label}>서버 주소</label>
+              <input
+                style={styles.input}
+                type="text"
+                value={config.baseUrl ?? 'http://localhost:11434'}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="http://localhost:11434"
+              />
+            </>
+          )}
+
+          {/* ── Helper link (only when credentials missing) ─────────────────── */}
+          {!hasCredentials && help && (
+            <button
+              style={styles.helperLink}
+              onClick={() => invoke('open_url', { url: help.url })}
+              title={help.url}
+            >
+              ↗ {help.label}
+            </button>
+          )}
+
+          {/* ── User name ───────────────────────────────────────────────────── */}
+          <label style={styles.label}>이름 (선택)</label>
+          <input
+            style={styles.input}
+            type="text"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+            onBlur={handleUserNameBlur}
+            placeholder="예: 한솔"
+          />
+
+          {/* ── Response length ─────────────────────────────────────────────── */}
+          <label style={styles.label}>답변 길이</label>
+          <div style={styles.tokenRow}>
+            {RESPONSE_LENGTH_OPTIONS.map(({ key, label, hint }) => {
+              const active = maxTokensPreset(config.maxTokens) === key
+              return (
+                <button
+                  key={key}
                   style={{
                     ...styles.tokenBtn,
-                    ...((config.monitorScope ?? 'free') === scope ? styles.tokenBtnActive : {}),
+                    ...(active ? styles.tokenBtnActive : {}),
                   }}
-                  onClick={() => void setMonitorScope(scope)}
-                  title={title}
+                  onClick={() => {
+                    // Named presets persist directly; the Custom chip just
+                    // focuses the inline input below so the user can type a
+                    // value (no preset to persist for 'custom').
+                    if (key === 'custom') {
+                      customInputRef.current?.focus()
+                      customInputRef.current?.select()
+                    } else {
+                      void setMaxTokens(MAX_TOKENS_PRESETS[key])
+                    }
+                  }}
+                  title={hint}
                 >
                   {label}
                 </button>
-              ))}
-            </div>
-            <p style={styles.tokenHint}>
-              {
-                {
-                  free: '모든 모니터의 가장자리를 누벼요 · 가끔 옆 화면으로 이사가요',
-                  single: '지금 있는 모니터 안에서만 놀아요 · 다른 화면으로 안 넘어가요',
-                  home: '놀러 갔다가도 알아서 주 모니터로 돌아와요',
-                }[config.monitorScope ?? 'free']
-              }
-            </p>
-          </>
-        )}
-
-        {/* ── Proactive barks ─────────────────────────────────────────────── */}
-        <label style={styles.label}>먼저 말 걸기</label>
-        <div style={styles.tokenRow}>
-          {[
-            { min: 0, label: '끄기' },
-            { min: 10, label: '10분' },
-            { min: 30, label: '30분' },
-            { min: 60, label: '1시간' },
-          ].map(({ min, label }) => {
-            const active = (config.proactiveIntervalMin ?? 0) === min
-            return (
-              <button
-                key={min}
-                style={{
-                  ...styles.tokenBtn,
-                  ...(active ? styles.tokenBtnActive : {}),
-                }}
-                onClick={() => void setProactiveInterval(min)}
-                title={min === 0 ? '먼저 말 걸지 않음' : `약 ${label}마다 한마디씩`}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
-        <p style={styles.tokenHint}>
-          {(config.proactiveIntervalMin ?? 0) > 0
-            ? '가만히 있으면 고양이가 화면을 힐끔 보고 먼저 한마디 해요 · 자는 중이나 대화 중엔 조용'
-            : '사용자가 먼저 말 걸 때까지 조용히 놀아요'}
-        </p>
-
-        {/* ── Click behaviour ─────────────────────────────────────────────── */}
-        <label style={styles.label}>고양이 클릭하면</label>
-        <div style={styles.tokenRow}>
-          <button
-            style={{
-              ...styles.tokenBtn,
-              ...((config.clickStyle ?? 'chat') === 'chat' ? styles.tokenBtnActive : {}),
-            }}
-            onClick={() => void setClickStyle('chat')}
-            title="클릭하면 채팅창이 열려요"
-          >
-            대화창
-          </button>
-          <button
-            style={{
-              ...styles.tokenBtn,
-              ...(config.clickStyle === 'bark' ? styles.tokenBtnActive : {}),
-            }}
-            onClick={() => void setClickStyle('bark')}
-            title="클릭하면 한 문장 말풍선만 띄워요"
-          >
-            한마디 말풍선
-          </button>
-        </div>
-        <p style={styles.tokenHint}>
-          {config.clickStyle === 'bark'
-            ? '클릭할 때마다 한 문장만 띄워요 · 대화는 우클릭 → Chat · 다시 클릭하면 닫혀요'
-            : '클릭하면 채팅창이 열려요'}
-        </p>
-
-        {/* ── Automation schedules ────────────────────────────────────────── */}
-        <div style={styles.divider} />
-        <label style={styles.label}>자동화 — 매일 정해진 시각에 실행</label>
-        {schedules.length === 0 && (
-          <p style={styles.autoHint}>등록된 작업 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼</p>
-        )}
-        {schedules.map((s) => (
-          <div key={s.id} style={styles.autoRow}>
+              )
+            })}
+          </div>
+          <div style={styles.customRow}>
             <input
-              type="checkbox"
-              checked={s.enabled}
-              onChange={() =>
-                void persistSchedules(
-                  schedules.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
-                )
-              }
-              title={s.enabled ? '끄기' : '켜기'}
+              ref={customInputRef}
+              style={{
+                ...styles.customInput,
+                ...(maxTokensPreset(config.maxTokens) === 'custom' ? styles.customInputActive : {}),
+              }}
+              type="number"
+              inputMode="numeric"
+              min={MAX_TOKENS_BOUNDS.min}
+              max={MAX_TOKENS_BOUNDS.max}
+              step={32}
+              value={customDraft}
+              onChange={(e) => setCustomDraft(e.target.value)}
+              onBlur={commitCustomTokens}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitCustomTokens()
+                  customInputRef.current?.blur()
+                }
+              }}
+              aria-label="답변 길이 직접 입력 (토큰)"
             />
-            <span style={styles.autoName} title={s.instruction}>
-              {s.at} {s.name}
-              {s.lastError ? ' ⚠' : ''}
-            </span>
+            <span style={styles.customUnit}>토큰</span>
+          </div>
+          <p style={styles.tokenHint}>
+            {maxTokensPreset(config.maxTokens) === 'custom'
+              ? `직접 입력 · ${config.maxTokens} 토큰`
+              : RESPONSE_LENGTH_OPTIONS.find((o) => o.key === maxTokensPreset(config.maxTokens))
+                  ?.hint}
+          </p>
+
+          {/* ── Cat behaviour mode ──────────────────────────────────────────── */}
+          <div style={styles.divider} />
+          <label style={styles.label}>고양이 행동 모드</label>
+          <div style={styles.tokenRow}>
             <button
-              style={styles.autoDel}
-              onClick={() => void persistSchedules(schedules.filter((x) => x.id !== s.id))}
-              title="삭제"
+              style={{
+                ...styles.tokenBtn,
+                ...((config.petMode ?? 'wanderer') === 'wanderer' ? styles.tokenBtnActive : {}),
+              }}
+              onClick={() => void setPetMode('wanderer')}
+              title="화면 가장자리를 따라 노는 자율 배회 — 작업을 덜 가림"
             >
-              ✕
+              자유 배회
+            </button>
+            <button
+              style={{
+                ...styles.tokenBtn,
+                ...(config.petMode === 'buddy' ? styles.tokenBtnActive : {}),
+              }}
+              onClick={() => void setPetMode('buddy')}
+              title="마우스 커서를 따라다님"
+            >
+              커서 추적
             </button>
           </div>
-        ))}
-        <div style={styles.autoRow}>
-          <input
-            style={{ ...styles.input, width: 52, flex: 'none' }}
-            type="text"
-            value={autoAt}
-            onChange={(e) => setAutoAt(e.target.value)}
-            placeholder="08:00"
-            title="시각 (HH:MM)"
-          />
-          <input
-            style={{ ...styles.input, flex: 1 }}
-            type="text"
-            value={autoName}
-            onChange={(e) => setAutoName(e.target.value)}
-            placeholder="작업 이름"
-          />
-        </div>
-        <div style={styles.autoRow}>
-          <input
-            style={{ ...styles.input, flex: 1 }}
-            type="text"
-            value={autoInstr}
-            onChange={(e) => setAutoInstr(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing) return
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                addSchedule()
-              }
+          <p style={styles.tokenHint}>
+            {(config.petMode ?? 'wanderer') === 'wanderer'
+              ? '주로 화면 가장자리·구석에서 놀아요 · 가끔 중앙에도 와요'
+              : '마우스를 졸졸 따라다녀요 · 작업을 자주 가릴 수 있어요'}
+          </p>
+
+          {/* ── Monitor roaming scope (wanderer only) ───────────────────────── */}
+          {(config.petMode ?? 'wanderer') === 'wanderer' && (
+            <>
+              <label style={styles.label}>모니터 활동 범위</label>
+              <div style={styles.tokenRow}>
+                {(
+                  [
+                    {
+                      scope: 'free',
+                      label: '전체 모니터',
+                      title: '모든 모니터의 가장자리를 누벼요',
+                    },
+                    {
+                      scope: 'single',
+                      label: '한 화면만',
+                      title: '지금 있는 모니터 안에서만 놀아요',
+                    },
+                    {
+                      scope: 'home',
+                      label: '주 화면 복귀',
+                      title: '멀리 가도 알아서 주 모니터로 돌아와요',
+                    },
+                  ] as const
+                ).map(({ scope, label, title }) => (
+                  <button
+                    key={scope}
+                    style={{
+                      ...styles.tokenBtn,
+                      ...((config.monitorScope ?? 'free') === scope ? styles.tokenBtnActive : {}),
+                    }}
+                    onClick={() => void setMonitorScope(scope)}
+                    title={title}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p style={styles.tokenHint}>
+                {
+                  {
+                    free: '모든 모니터의 가장자리를 누벼요 · 가끔 옆 화면으로 이사가요',
+                    single: '지금 있는 모니터 안에서만 놀아요 · 다른 화면으로 안 넘어가요',
+                    home: '놀러 갔다가도 알아서 주 모니터로 돌아와요',
+                  }[config.monitorScope ?? 'free']
+                }
+              </p>
+            </>
+          )}
+
+          {/* ── Proactive barks ─────────────────────────────────────────────── */}
+          <label style={styles.label}>먼저 말 걸기</label>
+          <div style={styles.tokenRow}>
+            {[
+              { min: 0, label: '끄기' },
+              { min: 10, label: '10분' },
+              { min: 30, label: '30분' },
+              { min: 60, label: '1시간' },
+            ].map(({ min, label }) => {
+              const active = (config.proactiveIntervalMin ?? 0) === min
+              return (
+                <button
+                  key={min}
+                  style={{
+                    ...styles.tokenBtn,
+                    ...(active ? styles.tokenBtnActive : {}),
+                  }}
+                  onClick={() => void setProactiveInterval(min)}
+                  title={min === 0 ? '먼저 말 걸지 않음' : `약 ${label}마다 한마디씩`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <p style={styles.tokenHint}>
+            {(config.proactiveIntervalMin ?? 0) > 0
+              ? '가만히 있으면 고양이가 화면을 힐끔 보고 먼저 한마디 해요 · 자는 중이나 대화 중엔 조용'
+              : '사용자가 먼저 말 걸 때까지 조용히 놀아요'}
+          </p>
+
+          {/* ── Click behaviour ─────────────────────────────────────────────── */}
+          <label style={styles.label}>고양이 클릭하면</label>
+          <div style={styles.tokenRow}>
+            <button
+              style={{
+                ...styles.tokenBtn,
+                ...((config.clickStyle ?? 'chat') === 'chat' ? styles.tokenBtnActive : {}),
+              }}
+              onClick={() => void setClickStyle('chat')}
+              title="클릭하면 채팅창이 열려요"
+            >
+              대화창
+            </button>
+            <button
+              style={{
+                ...styles.tokenBtn,
+                ...(config.clickStyle === 'bark' ? styles.tokenBtnActive : {}),
+              }}
+              onClick={() => void setClickStyle('bark')}
+              title="클릭하면 한 문장 말풍선만 띄워요"
+            >
+              한마디 말풍선
+            </button>
+          </div>
+          <p style={styles.tokenHint}>
+            {config.clickStyle === 'bark'
+              ? '클릭할 때마다 한 문장만 띄워요 · 대화는 우클릭 → Chat · 다시 클릭하면 닫혀요'
+              : '클릭하면 채팅창이 열려요'}
+          </p>
+
+          {/* ── Automation schedules ────────────────────────────────────────── */}
+          <div style={styles.divider} />
+          <label style={styles.label}>자동화 — 매일 정해진 시각에 실행</label>
+          {schedules.length === 0 && (
+            <p style={styles.autoHint}>
+              등록된 작업 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼
+            </p>
+          )}
+          {schedules.map((s) => (
+            <div key={s.id} style={styles.autoRow}>
+              <input
+                type="checkbox"
+                checked={s.enabled}
+                onChange={() =>
+                  void persistSchedules(
+                    schedules.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
+                  )
+                }
+                title={s.enabled ? '끄기' : '켜기'}
+              />
+              <span style={styles.autoName} title={s.instruction}>
+                {s.at} {s.name}
+                {s.lastError ? ' ⚠' : ''}
+              </span>
+              <button
+                style={styles.autoDel}
+                onClick={() => void persistSchedules(schedules.filter((x) => x.id !== s.id))}
+                title="삭제"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <div style={styles.autoRow}>
+            <input
+              style={{ ...styles.input, width: 52, flex: 'none' }}
+              type="text"
+              value={autoAt}
+              onChange={(e) => setAutoAt(e.target.value)}
+              placeholder="08:00"
+              title="시각 (HH:MM)"
+            />
+            <input
+              style={{ ...styles.input, flex: 1 }}
+              type="text"
+              value={autoName}
+              onChange={(e) => setAutoName(e.target.value)}
+              placeholder="작업 이름"
+            />
+          </div>
+          <div style={styles.autoRow}>
+            <input
+              style={{ ...styles.input, flex: 1 }}
+              type="text"
+              value={autoInstr}
+              onChange={(e) => setAutoInstr(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addSchedule()
+                }
+              }}
+              placeholder="할 일 (예: 뉴스 헤드라인 정리해서 runs/에 저장)"
+            />
+            <button style={styles.autoAdd} onClick={addSchedule} title="등록">
+              +
+            </button>
+          </div>
+
+          {/* ── Test button ─────────────────────────────────────────────────── */}
+          <button
+            style={{
+              ...styles.testBtn,
+              ...(testStatus === 'ok' ? styles.testOk : {}),
+              ...(testStatus === 'error' ? styles.testError : {}),
             }}
-            placeholder="할 일 (예: 뉴스 헤드라인 정리해서 runs/에 저장)"
-          />
-          <button style={styles.autoAdd} onClick={addSchedule} title="등록">
-            +
+            onClick={handleTest}
+            disabled={testStatus === 'loading'}
+          >
+            {testStatus === 'loading' ? '테스트 중…' : '연결 테스트'}
+          </button>
+
+          {testMsg !== '' && (
+            <p
+              style={{
+                ...styles.testFeedback,
+                color: testStatus === 'ok' ? '#4caf50' : '#f44336',
+              }}
+            >
+              {testMsg}
+            </p>
+          )}
+
+          {/* ── Quit ────────────────────────────────────────────────────────── */}
+          <div style={styles.divider} />
+          <button style={styles.quitBtn} onClick={() => invoke('quit_app')}>
+            Sidecat 종료
           </button>
         </div>
-
-        {/* ── Test button ─────────────────────────────────────────────────── */}
-        <button
-          style={{
-            ...styles.testBtn,
-            ...(testStatus === 'ok' ? styles.testOk : {}),
-            ...(testStatus === 'error' ? styles.testError : {}),
-          }}
-          onClick={handleTest}
-          disabled={testStatus === 'loading'}
-        >
-          {testStatus === 'loading' ? '테스트 중…' : '연결 테스트'}
-        </button>
-
-        {testMsg !== '' && (
-          <p
-            style={{
-              ...styles.testFeedback,
-              color: testStatus === 'ok' ? '#4caf50' : '#f44336',
-            }}
-          >
-            {testMsg}
-          </p>
-        )}
-
-        {/* ── Quit ────────────────────────────────────────────────────────── */}
-        <div style={styles.divider} />
-        <button style={styles.quitBtn} onClick={() => invoke('quit_app')}>
-          Sidecat 종료
-        </button>
       </div>
     </div>
   )
@@ -737,6 +736,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     boxSizing: 'border-box',
     width: '280px',
+    // Bound the panel to the window — unbounded, a tall panel overflows the
+    // centred overlay at BOTH ends and the header (with the close button)
+    // ends up clipped off the top. Inner scroll lives on `body`.
+    maxHeight: 'calc(100% - 24px)',
+    overflow: 'hidden',
+  },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    flex: 1,
+    minHeight: 0,
     overflowY: 'auto',
   },
   header: {
