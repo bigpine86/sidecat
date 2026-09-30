@@ -12,6 +12,8 @@ import { SidecatSettings } from './sidecat/SidecatSettings'
 import { beginCatGrab } from './sidecat/catGrab'
 import { proactiveBark } from './sidecat/proactiveBark'
 import { catMonitorPlacement } from './sidecat/screenPoint'
+import { houseAnchor } from './sidecat/houseAnchor'
+import { isNapping, setNapUntil } from './sidecat/napMode'
 import { PetSelector } from './components/PetSelector'
 import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
@@ -275,7 +277,29 @@ export default function App() {
   const effectiveMode: 'buddy' | 'wanderer' =
     cursorTracking === 'unavailable' ? 'wanderer' : userMode
 
-  const { petState, currentAnimation, overridePosition } = usePetMovement({
+  // ── "집에 가" — directed walk home + optional nap ────────────────────────
+  // pendingNapRef carries the requested nap length between "go home" being
+  // pressed and the walk actually arriving; 0 = just go stand at the door.
+  const pendingNapRef = useRef(0)
+  const napTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Fired by the movement hook when a walkTo() destination is reached. A
+  // pending nap means the cat slips inside (window hidden) and re-emerges
+  // when the timer dispatches 'sidecat:wake-cat' (handled further down,
+  // near the announcement queue it needs).
+  const handleWalkArrived = useCallback(() => {
+    const mins = pendingNapRef.current
+    pendingNapRef.current = 0
+    if (mins <= 0) return
+    void getCurrentWindow().hide()
+    setNapUntil(Date.now() + mins * 60_000)
+    if (napTimerRef.current) clearTimeout(napTimerRef.current)
+    napTimerRef.current = setTimeout(() => {
+      window.dispatchEvent(new Event('sidecat:wake-cat'))
+    }, mins * 60_000)
+  }, [])
+
+  const { petState, currentAnimation, overridePosition, walkTo } = usePetMovement({
     nearThreshold: 50,
     sleepTimeout: 10 * 60 * 1000, // sequencer handles sleep at 5 min; this is a safety fallback
     windowSize: spriteSize,
@@ -290,13 +314,20 @@ export default function App() {
     monitorScope: config.monitorScope ?? 'free',
     availableAnimations: availableAnimationsList,
     onEdgeAnimation: handleEdgeAnimation,
+    onWalkArrived: handleWalkArrived,
   })
 
   // ── Tray event listeners ───────────────────────────────────────────────────
   useEffect(() => {
     const unlisteners = Promise.all([
-      listen('tray-settings', () => setSettingsOpen(true)),
+      listen('tray-settings', () => {
+        // Waking path: settings can't render into a hidden (napping) window,
+        // so engaging with the app counts as "come on out".
+        if (isNapping()) window.dispatchEvent(new Event('sidecat:wake-cat'))
+        setSettingsOpen(true)
+      }),
       listen<string>('tray-select-pet', (e) => {
+        if (isNapping()) window.dispatchEvent(new Event('sidecat:wake-cat'))
         useConfigStore.getState().setActivePetId(e.payload)
         setPetSelectorOpen(true)
       }),
@@ -306,6 +337,7 @@ export default function App() {
       listen<string>('panel-action', (e) => {
         const action = e.payload
         if (action === 'settings') {
+          if (isNapping()) window.dispatchEvent(new Event('sidecat:wake-cat'))
           setSettingsOpen(true)
         } else if (action === 'automation') {
           // Center the automation panel on the cat's monitor — the panel
@@ -343,14 +375,20 @@ export default function App() {
         } else if (action.startsWith('pet-mode:')) {
           const m = action.split(':')[1] as 'buddy' | 'wanderer'
           if (m === 'buddy' || m === 'wanderer') useConfigStore.getState().setPetMode(m)
+        } else if (action === 'go-home') {
+          // Context-menu "집으로" — same path as the settings button.
+          window.dispatchEvent(new CustomEvent('sidecat:go-home', { detail: 0 }))
         } else if (action.startsWith('house_pos:')) {
+          // House double-click "call the cat home": it WALKS back rather
+          // than teleporting — the journey is the charm. The parsed coords
+          // only confirmed where the house sits; the doorstep target comes
+          // from houseAnchor so both callers share one formula.
           const [xStr, yStr] = action.split(':')[1].split(',')
-          const x = parseInt(xStr, 10)
-          const y = parseInt(yStr, 10)
-          if (!isNaN(x) && !isNaN(y)) {
-            const scale = window.devicePixelRatio || 1
-            // Position pet to the left of the house with a 4-px physical gap
-            overridePosition(x - spriteSize * scale - Math.round(4 * scale), y)
+          if (!isNaN(parseInt(xStr, 10)) && !isNaN(parseInt(yStr, 10))) {
+            void (async () => {
+              const anchor = await houseAnchor(spriteSize)
+              if (anchor) walkTo(anchor.doorX, anchor.doorY)
+            })()
           }
         }
       }),
@@ -397,9 +435,10 @@ export default function App() {
       unlisteners.then((fns) => fns.forEach((fn) => fn()))
       if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current)
       if (clickWakeTimerRef.current) clearTimeout(clickWakeTimerRef.current)
+      if (napTimerRef.current) clearTimeout(napTimerRef.current)
       if (edgeAnimTimerRef.current) clearTimeout(edgeAnimTimerRef.current)
     }
-  }, [overridePosition, spriteSize])
+  }, [overridePosition, walkTo, spriteSize])
 
   // ── Resize OS window when pet size changes ────────────────────────────────
   // Panels and bubble have their own resize logic; guard them here so they
@@ -577,7 +616,7 @@ export default function App() {
   }, [closeBubble])
 
   const tryFlushAnnounce = useCallback(() => {
-    if (uiBusyRef.current) return
+    if (uiBusyRef.current || isNapping()) return
     const next = announceQueueRef.current.shift()
     if (!next) return
     setOnboardingAnnouncement(next)
@@ -684,7 +723,7 @@ export default function App() {
     let timer = 0
     const tick = async () => {
       if (cancelled) return
-      if (!uiBusyRef.current && petCalmRef.current) {
+      if (!uiBusyRef.current && petCalmRef.current && !isNapping()) {
         try {
           const text = await proactiveBark()
           if (text) {
@@ -709,6 +748,74 @@ export default function App() {
       window.clearTimeout(timer)
     }
   }, [isLoaded, config.proactiveIntervalMin, dismissAnnouncement, tryFlushAnnounce])
+
+  // ── 집에 가기 / 낮잠 타이머 ────────────────────────────────────────────────
+  // Settings fires 'sidecat:go-home' with a minute count: the cat WALKS to
+  // the house (walkTo), slips inside (window hidden) if a duration was
+  // picked, then steps back out and announces itself with a bark — so the
+  // feature doubles as a cute timer. 'sidecat:wake-cat' ends it early.
+  const wakeFromNap = useCallback(async () => {
+    if (napTimerRef.current) {
+      clearTimeout(napTimerRef.current)
+      napTimerRef.current = null
+    }
+    pendingNapRef.current = 0
+    setNapUntil(0)
+    const win = getCurrentWindow()
+    const anchor = await houseAnchor(useConfigStore.getState().config.petSize ?? 64)
+    if (anchor) overridePosition(anchor.stepX, anchor.stepY)
+    await win.show()
+    let text: string | null
+    try {
+      text = await proactiveBark(
+        '방금 집에서 낮잠 자고 나온 참이다 — 나왔다는 신고를 야옹스럽게 짧게'
+      )
+    } catch {
+      text = null
+    }
+    announceQueueRef.current.push({
+      text: text ?? '야옹! 잘 잤다냥.',
+      actions: [],
+      autoCloseMs: 8000,
+    })
+    tryFlushAnnounce()
+  }, [overridePosition, tryFlushAnnounce])
+
+  useEffect(() => {
+    const onGoHome = (e: Event) => {
+      const mins = Number((e as CustomEvent<number>).detail) || 0
+      void (async () => {
+        // Already asleep inside: a new duration re-arms the timer; "그냥"
+        // during a nap means the user wants it back out.
+        if (isNapping()) {
+          if (mins <= 0) {
+            await wakeFromNap()
+            return
+          }
+          setNapUntil(Date.now() + mins * 60_000)
+          if (napTimerRef.current) clearTimeout(napTimerRef.current)
+          napTimerRef.current = setTimeout(() => {
+            window.dispatchEvent(new Event('sidecat:wake-cat'))
+          }, mins * 60_000)
+          return
+        }
+        const anchor = await houseAnchor(useConfigStore.getState().config.petSize ?? 64)
+        if (!anchor) return
+        pendingNapRef.current = mins
+        setSettingsOpen(false)
+        // Let the settings collapse land first so the walk starts from the
+        // sprite's restored position, not the panel's.
+        window.setTimeout(() => walkTo(anchor.doorX, anchor.doorY), 400)
+      })()
+    }
+    const onWake = () => void wakeFromNap()
+    window.addEventListener('sidecat:go-home', onGoHome)
+    window.addEventListener('sidecat:wake-cat', onWake)
+    return () => {
+      window.removeEventListener('sidecat:go-home', onGoHome)
+      window.removeEventListener('sidecat:wake-cat', onWake)
+    }
+  }, [walkTo, wakeFromNap])
 
   // ── Onboarding sequence ────────────────────────────────────────────────────
   // Cursor following stays paused via `onboardingActive` (see usePetMovement
@@ -999,7 +1106,8 @@ export default function App() {
         }
         announceQueueRef.current.push({
           text,
-          actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+          actions: [],
+          autoCloseMs: 8000,
         })
         tryFlushAnnounce()
       })()
@@ -1018,15 +1126,7 @@ export default function App() {
     } else {
       openBubble()
     }
-  }, [
-    bubbleOpen,
-    settingsOpen,
-    openBubble,
-    closeBubble,
-    availableAnimationsList,
-    dismissAnnouncement,
-    tryFlushAnnounce,
-  ])
+  }, [bubbleOpen, settingsOpen, openBubble, closeBubble, availableAnimationsList, tryFlushAnnounce])
 
   const handleRightClick = useCallback(
     async (e: React.MouseEvent) => {

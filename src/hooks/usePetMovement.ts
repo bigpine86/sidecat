@@ -26,12 +26,17 @@ export interface UsePetMovementOptions {
   /** Called by the edge state machine when an animation override should play
    *  for `durationMs` while the pet is frozen at a monitor boundary. */
   onEdgeAnimation?: (kind: EdgeAnimationKind, direction: EdgeDirection, durationMs: number) => void
+  /** Sidecat: fired once when a walkTo() destination is reached. */
+  onWalkArrived?: () => void
 }
 
 export interface UsePetMovementResult {
   petState: PetState
   currentAnimation: string
   overridePosition: (x: number, y: number) => void
+  /** Sidecat: send the pet walking to a physical-pixel point (e.g. its
+   *  house door). Outranks wander picks and cursor chasing until arrival. */
+  walkTo: (x: number, y: number) => void
 }
 
 // ─── Internal constants ───────────────────────────────────────────────────────
@@ -127,6 +132,7 @@ export function usePetMovement({
   monitorScope = 'free',
   availableAnimations = [],
   onEdgeAnimation,
+  onWalkArrived,
 }: UsePetMovementOptions = {}): UsePetMovementResult {
   const [petState, setPetState] = useState<PetState>('IDLE')
   const [currentAnimation, setCurrentAnimation] = useState('idle')
@@ -157,6 +163,14 @@ export function usePetMovement({
   // Play-mode wander state
   const wanderTargetRef = useRef<Vec2 | null>(null)
   const wanderWaitUntil = useRef(0)
+
+  // Sidecat "walk to a spot" — a user-directed destination (the house door)
+  // that outranks both wander picks and cursor chasing until it is reached.
+  const walkTargetRef = useRef<Vec2 | null>(null)
+  const onWalkArrivedRef = useRef(onWalkArrived)
+  useEffect(() => {
+    onWalkArrivedRef.current = onWalkArrived
+  })
 
   const halfSize = windowSize / 2
 
@@ -368,7 +382,47 @@ export function usePetMovement({
 
       // ── State machine ──────────────────────────────────────────────────────
 
-      if (mode === 'wanderer') {
+      // Sidecat: a user-directed destination (walkTo) takes priority over
+      // everything — wander picks, cursor chasing, monitor confinement. The
+      // pet keeps walking until it arrives, then fires onWalkArrived.
+      const walkDest = walkTargetRef.current
+      if (walkDest) {
+        const wdx = walkDest.x - centre.x
+        const wdy = walkDest.y - centre.y
+        const wdist = distance(walkDest, centre)
+
+        if (wdist <= nearThreshold) {
+          walkTargetRef.current = null
+          moveAccumX.current = 0
+          moveAccumY.current = 0
+          transition('IDLE', 0, 1)
+          lastCursorMoveRef.current = now
+          onWalkArrivedRef.current?.()
+        } else {
+          if (state !== 'WALKING') transition('WALKING', wdx, wdy)
+          else setWalkDir(wdx, wdy)
+
+          const frameStep = SPEED_PX_PER_SEC / 60
+          moveAccumX.current += (wdx / wdist) * frameStep
+          moveAccumY.current += (wdy / wdist) * frameStep
+
+          const intStepX = Math.trunc(moveAccumX.current)
+          const intStepY = Math.trunc(moveAccumY.current)
+
+          if (intStepX !== 0 || intStepY !== 0) {
+            moveAccumX.current -= intStepX
+            moveAccumY.current -= intStepY
+
+            const newX = winPos.x + intStepX
+            const newY = winPos.y + intStepY
+
+            winPosRef.current = { x: newX, y: newY }
+            win
+              .setPosition(new PhysicalPosition(Math.round(newX), Math.round(newY)))
+              .catch(() => {})
+          }
+        }
+      } else if (mode === 'wanderer') {
         // ── Wanderer Mode ─────────────────────────────────────────────────────
 
         if (dist <= nearThreshold && state !== 'NEAR_CURSOR' && state !== 'SLEEPING') {
@@ -714,5 +768,29 @@ export function usePetMovement({
       .catch(() => {})
   }, [])
 
-  return { petState, currentAnimation, overridePosition }
+  // ─── Sidecat: directed walk ────────────────────────────────────────────────
+  // walkTo sets a destination the loop honours before anything else. Callers
+  // fire this right after a panel collapse, when winPosRef may still hold the
+  // expanded window's spot — refresh it from the OS so the first step isn't
+  // a teleport. When the loop isn't running (panels open, drag), the target
+  // simply waits and the walk resumes once movement re-enables.
+  const walkTo = useCallback(
+    (x: number, y: number) => {
+      walkTargetRef.current = { x, y }
+      wanderTargetRef.current = null
+      wanderWaitUntil.current = 0
+      moveAccumX.current = 0
+      moveAccumY.current = 0
+      getCurrentWindow()
+        .outerPosition()
+        .then((p) => {
+          winPosRef.current = { x: p.x, y: p.y }
+        })
+        .catch(() => {})
+      if (stateRef.current !== 'WALKING') transition('WALKING', 1, 0)
+    },
+    [transition]
+  )
+
+  return { petState, currentAnimation, overridePosition, walkTo }
 }

@@ -61,9 +61,10 @@ function dedupeSentences(text: string): string {
   return kept.join(' ') || text
 }
 
-// One "speak first" agent turn: persona + a randomly picked concept, delivered
-// as a 1–2 sentence reply the caller surfaces in a bubble.
-export async function proactiveBark(): Promise<string | null> {
+// One "speak first" agent turn: persona + a concept, delivered as a 1–2
+// sentence reply the caller surfaces in a bubble. `hint` overrides the random
+// concept picker for situational barks (e.g. stepping out of the house).
+export async function proactiveBark(hint?: string): Promise<string | null> {
   const { config: cfg } = useConfigStore.getState()
   if (!isConfigured(cfg)) return null
   const [facts] = await Promise.all([loadFacts()])
@@ -78,7 +79,7 @@ export async function proactiveBark(): Promise<string | null> {
       : ''
   const turnText =
     `[먼저 말 걸기] 너는 츤츤거리는 데스크톱 고양이 Sidecat이다. 한국어 반말, 짧고 시크하지만 ` +
-    `속으로는 사용자를 챙기는 타입. "냥"은 가끔만. 이번 컨셉: ${pickBarkHint()}.${avoid} ` +
+    `속으로는 사용자를 챙기는 타입. "냥"은 가끔만. 이번 컨셉: ${hint ?? pickBarkHint()}.${avoid} ` +
     `규칙: 순수 텍스트 1~2문장만. 컨셉을 말로 언급하지 말고 자연스러운 행동으로. 같은 문장 반복 금지.`
   await invoke('save_message', { role: 'user', content: '[먼저 말 걸기]' }).catch(() => {})
   const provider = createAIProvider(cfg)

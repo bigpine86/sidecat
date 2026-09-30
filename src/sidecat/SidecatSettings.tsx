@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { PhysicalPosition } from '@tauri-apps/api/dpi'
 import { catMonitorPlacement, centeredPanelPosition } from './screenPoint'
+import { useNap } from './napMode'
 import { useConfigStore } from '../store/configStore'
 import { createAIProvider, buildContextBlock } from '../ai'
 import {
@@ -97,6 +98,9 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
   )
   const customInputRef = useRef<HTMLInputElement>(null)
   const [savedPos, setSavedPos] = useState<{ x: number; y: number } | null>(null)
+
+  // ── Nap status — heartbeat inside napMode keeps this fresh ─────────────
+  const { napping, minLeft: napMinLeft } = useNap()
 
   // ── Automation — count only; editing happens in the macro panel ──────────
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -512,6 +516,55 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
                     home: '놀러 갔다가도 알아서 주 모니터로 돌아와요',
                   }[config.monitorScope ?? 'free']
                 }
+              </p>
+            </>
+          )}
+
+          {/* ── Send the cat home / nap timer ───────────────────────────────
+              "집에 가" walks the cat to its house; a duration makes it nap
+              inside and step back out with a meow — doubles as a cute timer. */}
+          <div style={styles.divider} />
+          <label style={styles.label}>집에 보내기</label>
+          {napping ? (
+            <>
+              <p style={styles.tokenHint}>
+                지금 집에서 자는 중이에요 · 약 {Math.max(1, napMinLeft)}분 뒤에 나와요
+              </p>
+              <div style={styles.tokenRow}>
+                <button
+                  style={styles.tokenBtn}
+                  onClick={() => window.dispatchEvent(new Event('sidecat:wake-cat'))}
+                  title="지금 바로 깨워요"
+                >
+                  지금 깨우기
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={styles.tokenRow}>
+                {[
+                  { min: 0, label: '그냥', title: '집까지 걸어가서 거기서 놀아요' },
+                  { min: 10, label: '10분', title: '집에서 10분 자고 야옹 하며 나와요' },
+                  { min: 30, label: '30분', title: '집에서 30분 자고 야옹 하며 나와요' },
+                  { min: 60, label: '1시간', title: '집에서 1시간 자고 야옹 하며 나와요' },
+                ].map(({ min, label, title }) => (
+                  <button
+                    key={min}
+                    style={styles.tokenBtn}
+                    title={title}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('sidecat:go-home', { detail: min }))
+                      onClose()
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p style={styles.tokenHint}>
+                집까지 열심히 걸어가요 · 시간을 고르면 낮잠 자고 야옹 하며 나와요 — 타이머처럼 써도
+                돼요
               </p>
             </>
           )}

@@ -6,7 +6,7 @@ import { AutomationPanel } from './sidecat/AutomationPanel'
 
 // Layout constants — keep in sync with the parent App's expectations
 const MENU_W = 190
-const MENU_H = 260
+const MENU_H = 296
 const ABOUT_H = 340
 
 const PET_SIZES: { label: string; value: number }[] = [
@@ -183,6 +183,15 @@ function ContextMenuPanel() {
           }}
         >
           🤖 자동화
+        </button>
+        <button
+          style={styles.item}
+          onClick={() => {
+            panelAction('go-home')
+            close()
+          }}
+        >
+          🏠 집으로 보내기
         </button>
 
         <div style={styles.divider} />
