@@ -24,6 +24,9 @@ export interface AnnouncementAction {
 export interface AnnouncementContent {
   text: string
   actions: AnnouncementAction[]
+  /** When set, the announcement fades on its own after this many ms —
+   *  for ambient barks that shouldn't demand a click. */
+  autoCloseMs?: number
 }
 
 export interface SpeechBubbleProps {
@@ -133,6 +136,14 @@ export function SpeechBubble({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPendingText(announcement.text)
   }, [isOpen, announcement])
+
+  // Ambient announcements (barks) auto-dismiss — the cat speaks, you glance,
+  // it goes away. Announcements with actions still wait for a click.
+  useEffect(() => {
+    if (!isOpen || !announcement?.autoCloseMs) return
+    const t = setTimeout(onClose, announcement.autoCloseMs)
+    return () => clearTimeout(t)
+  }, [isOpen, announcement, onClose])
 
   // ── Auto-scroll to latest message ─────────────────────────────────────────
   useEffect(() => {
@@ -310,7 +321,7 @@ export function SpeechBubble({
       )}
 
       {/* ── Action buttons (announcement mode) ──────────────────────────── */}
-      {announcement && !isTyping && (
+      {announcement && !isTyping && announcement.actions.length > 0 && (
         <div className="speech-bubble__cta-row">
           {announcement.actions.map((action, i) => (
             <button

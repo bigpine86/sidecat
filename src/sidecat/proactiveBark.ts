@@ -39,6 +39,28 @@ export function pickBarkHint(): string {
   return pool[0].hint
 }
 
+// Recent bark texts — fed back into the prompt so the cat doesn't repeat
+// itself across fires (the "context" channel only reaches the model on the
+// very first turn of the omo thread, so anything we want every bark to see
+// must ride inside the message text).
+const recentBarks: string[] = []
+
+// Collapse exact duplicate sentences — LLMs sometimes emit the same line
+// twice when asked for "1~2 sentences".
+function dedupeSentences(text: string): string {
+  const sentences = text
+    .split(/(?<=[.!?…~])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const seen = new Set<string>()
+  const kept = sentences.filter((s) => {
+    if (seen.has(s)) return false
+    seen.add(s)
+    return true
+  })
+  return kept.join(' ') || text
+}
+
 // One "speak first" agent turn: persona + a randomly picked concept, delivered
 // as a 1–2 sentence reply the caller surfaces in a bubble.
 export async function proactiveBark(): Promise<string | null> {
@@ -48,13 +70,24 @@ export async function proactiveBark(): Promise<string | null> {
   const mood = useAppStore.getState().mood
   const systemPrompt =
     buildContextBlock('Sidecat', facts, mood) +
-    `\n\n[자발 발화] 사용자가 먼저 말을 걸지 않았다. 네가 먼저 말풍선에 띄울 한마디를 한다. 이번 컨셉: ${pickBarkHint()} 순수 텍스트 1~2문장만, 컨셉을 그대로 언급하지 말고 자연스럽게 행동으로.`
+    `\n\n[자발 발화] 사용자가 먼저 말을 걸지 않았다. 네가 먼저 말풍선에 띄울 한마디를 한다.`
+  // Persona + concept ride inside the turn text — see recentBarks comment.
+  const avoid =
+    recentBarks.length > 0
+      ? ` 이전에 이미 한 말들(같은 말 또 하지 마): ${recentBarks.map((t) => `"${t}"`).join(' / ')}.`
+      : ''
+  const turnText =
+    `[먼저 말 걸기] 너는 츤츤거리는 데스크톱 고양이 Sidecat이다. 한국어 반말, 짧고 시크하지만 ` +
+    `속으로는 사용자를 챙기는 타입. "냥"은 가끔만. 이번 컨셉: ${pickBarkHint()}.${avoid} ` +
+    `규칙: 순수 텍스트 1~2문장만. 컨셉을 말로 언급하지 말고 자연스러운 행동으로. 같은 문장 반복 금지.`
   await invoke('save_message', { role: 'user', content: '[먼저 말 걸기]' }).catch(() => {})
   const provider = createAIProvider(cfg)
-  const reply = await provider.sendMessage(
-    [{ role: 'user', content: '[먼저 말 걸기]' }],
-    systemPrompt
-  )
-  await invoke('save_message', { role: 'assistant', content: reply }).catch(() => {})
-  return reply
+  const reply = await provider.sendMessage([{ role: 'user', content: turnText }], systemPrompt)
+  const cleaned = dedupeSentences(reply.trim())
+  await invoke('save_message', { role: 'assistant', content: cleaned }).catch(() => {})
+  if (cleaned) {
+    recentBarks.push(cleaned)
+    if (recentBarks.length > 6) recentBarks.shift()
+  }
+  return cleaned
 }

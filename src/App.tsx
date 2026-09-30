@@ -688,9 +688,11 @@ export default function App() {
         try {
           const text = await proactiveBark()
           if (text) {
+            // Barks are ambient — no buttons, auto-dismiss after 8s.
             announceQueueRef.current.push({
               text,
-              actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+              actions: [],
+              autoCloseMs: 8000,
             })
             tryFlushAnnounce()
           }
@@ -1141,7 +1143,7 @@ export default function App() {
         isOpen={bubbleOpen}
         position={bubblePos}
         spriteSize={spriteSize}
-        onClose={closeBubble}
+        onClose={onboardingAnnouncement ? dismissAnnouncement : closeBubble}
         onSendMessage={handleSendMessage}
         loadHistory={loadHistory}
         announcement={onboardingAnnouncement ?? undefined}

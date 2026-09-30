@@ -155,7 +155,15 @@ class OmoBackend {
     this.activeTurn = null
     this.turnBusy = false
     if (item) {
-      const parts = [...this.deltas.values()].filter((t) => t.trim().length > 0)
+      // A turn can emit the same text under multiple itemIds (interim +
+      // final message) — joining them produced doubled replies in bubbles.
+      const seen = new Set<string>()
+      const parts = [...this.deltas.values()].filter((t) => {
+        const k = t.trim()
+        if (!k || seen.has(k)) return false
+        seen.add(k)
+        return true
+      })
       item.resolve(parts.join('\n\n'))
     }
     void this.pump()
