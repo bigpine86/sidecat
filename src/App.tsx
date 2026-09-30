@@ -17,7 +17,13 @@ import { useConfigStore } from './store/configStore'
 import { useAppStore } from './store'
 import { createAIProvider, buildContextBlock } from './ai'
 import { loadFacts, extractAndSaveFacts } from './ai/memory'
-import { startScheduler, type Schedule } from './sidecat/scheduler'
+import {
+  buildInstruction,
+  loadSchedules,
+  recordRunResult,
+  startScheduler,
+  type Schedule,
+} from './sidecat/scheduler'
 import { useDesktopContext } from './hooks/useDesktopContext'
 import { useMoodEngine } from './hooks/useMoodEngine'
 import { useIdleSequencer } from './hooks/useIdleSequencer'
@@ -301,6 +307,29 @@ export default function App() {
         const action = e.payload
         if (action === 'settings') {
           setSettingsOpen(true)
+        } else if (action === 'automation') {
+          // Center the automation panel on the cat's monitor — the panel
+          // window is reused, so this also covers the context-menu morph.
+          void (async () => {
+            try {
+              const { mon } = await catMonitorPlacement()
+              await invoke('open_panel_window', {
+                x: mon.x + (mon.w - 480) / 2,
+                y: mon.y + (mon.h - 620) / 2,
+                width: 480,
+                height: 620,
+                route: 'automation',
+              })
+            } catch (e) {
+              console.error('[automation] open failed:', e)
+            }
+          })()
+        } else if (action.startsWith('run-now:')) {
+          // runScheduledTask is declared further down — hop through a window
+          // event (same trick as 'sidecat:open-chat') to avoid use-before-declare.
+          window.dispatchEvent(
+            new CustomEvent('sidecat:run-now', { detail: action.slice('run-now:'.length) })
+          )
         } else if (action === 'select-pet') {
           setPetSelectorOpen(true)
         } else if (action === 'chat') {
@@ -557,9 +586,10 @@ export default function App() {
 
   const runScheduledTask = useCallback(async (s: Schedule): Promise<string> => {
     const { config: cfg } = useConfigStore.getState()
+    const instruction = buildInstruction(s)
     await invoke('save_message', {
       role: 'user',
-      content: `[자동 실행: ${s.name}] ${s.instruction}`,
+      content: `[자동 실행: ${s.name}] ${instruction}`,
     }).catch(() => {})
     const [facts] = await Promise.all([loadFacts()])
     const mood = useAppStore.getState().mood
@@ -567,10 +597,7 @@ export default function App() {
       buildContextBlock('Sidecat', facts, mood) +
       '\n\n[자동 작업] 예약된 자동 작업을 실행 중이다. 가진 도구로 끝까지 수행하고, 결과를 1~2문장으로 짧게 보고하라. 산출물이 필요하면 ~/.sidecat/runs/ 아래에 파일로 저장하라.'
     const provider = createAIProvider(cfg)
-    const reply = await provider.sendMessage(
-      [{ role: 'user', content: s.instruction }],
-      systemPrompt
-    )
+    const reply = await provider.sendMessage([{ role: 'user', content: instruction }], systemPrompt)
     await invoke('save_message', { role: 'assistant', content: reply }).catch(() => {})
     return reply
   }, [])
@@ -585,6 +612,7 @@ export default function App() {
           text: `🐾 '${s.name}' 완료!\n${short}`,
           actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
         })
+        return reply
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         announceQueueRef.current.push({
@@ -598,6 +626,39 @@ export default function App() {
     })
     return stop
   }, [isLoaded, runScheduledTask, dismissAnnouncement, tryFlushAnnounce])
+
+  // "지금 실행" from the automation panel — runs the macro immediately and
+  // writes the result back into schedules.json so the panel's next poll
+  // reflects it. Completion also surfaces through the announcement bubble.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      void (async () => {
+        const file = await loadSchedules()
+        const s = file.schedules.find((x) => x.id === id)
+        if (!s) return
+        try {
+          const reply = await runScheduledTask(s)
+          await recordRunResult(s.id, true, reply)
+          const short = reply.length > 160 ? reply.slice(0, 157) + '…' : reply
+          announceQueueRef.current.push({
+            text: `🐾 '${s.name}' 완료!\n${short}`,
+            actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+          })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          await recordRunResult(s.id, false, msg)
+          announceQueueRef.current.push({
+            text: `😿 '${s.name}' 실패…\n${msg}`,
+            actions: [{ label: '확인', primary: true, onClick: dismissAnnouncement }],
+          })
+        }
+        tryFlushAnnounce()
+      })()
+    }
+    window.addEventListener('sidecat:run-now', handler)
+    return () => window.removeEventListener('sidecat:run-now', handler)
+  }, [runScheduledTask, dismissAnnouncement, tryFlushAnnounce])
 
   // Show queued announcements once the bubble/panels are free again.
   useEffect(() => {

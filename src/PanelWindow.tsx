@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useConfigStore } from './store/configStore'
+import { AutomationPanel } from './sidecat/AutomationPanel'
 
 // Layout constants — keep in sync with the parent App's expectations
 const MENU_W = 190
@@ -27,6 +28,7 @@ interface Props {
  */
 export function PanelWindow({ route }: Props) {
   if (route === 'context-menu') return <ContextMenuPanel />
+  if (route === 'automation') return <AutomationPanel />
   return null
 }
 
@@ -171,6 +173,16 @@ function ContextMenuPanel() {
         </button>
         <button style={styles.item} onClick={openSelectPet}>
           🐾 고양이 선택
+        </button>
+        <button
+          style={styles.item}
+          onClick={() => {
+            // This same window morphs into the automation panel — the main
+            // window re-routes + resizes it, so we forward instead of closing.
+            panelAction('automation')
+          }}
+        >
+          🤖 자동화
         </button>
 
         <div style={styles.divider} />

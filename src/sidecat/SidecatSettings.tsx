@@ -13,7 +13,7 @@ import {
   type AIConfig,
   type MaxTokensPreset,
 } from '../ai/types'
-import { loadSchedules, saveSchedules, type Schedule } from './scheduler'
+import { loadSchedules, type Schedule } from './scheduler'
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
@@ -98,39 +98,29 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
   const customInputRef = useRef<HTMLInputElement>(null)
   const [savedPos, setSavedPos] = useState<{ x: number; y: number } | null>(null)
 
-  // ── Automation schedules (~/.sidecat/schedules.json) ─────────────────────
+  // ── Automation — count only; editing happens in the macro panel ──────────
   const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [autoName, setAutoName] = useState('')
-  const [autoAt, setAutoAt] = useState('08:00')
-  const [autoInstr, setAutoInstr] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
     void loadSchedules().then((f) => setSchedules(f.schedules))
   }, [isOpen])
 
-  const persistSchedules = useCallback(async (list: Schedule[]) => {
-    setSchedules(list)
-    await saveSchedules({ schedules: list }).catch((e) =>
-      console.error('[Settings] saveSchedules failed:', e)
-    )
-  }, [])
-
-  const addSchedule = useCallback(() => {
-    const name = autoName.trim()
-    const instruction = autoInstr.trim()
-    if (!name || !instruction || !/^\d{1,2}:\d{2}$/.test(autoAt.trim())) return
-    const entry: Schedule = {
-      id: `s-${Date.now().toString(36)}`,
-      name,
-      instruction,
-      at: autoAt.trim().padStart(5, '0'),
-      enabled: true,
+  // Open the dedicated automation window centered on the cat's monitor.
+  const openAutomationPanel = useCallback(async () => {
+    try {
+      const { mon } = await catMonitorPlacement()
+      await invoke('open_panel_window', {
+        x: mon.x + (mon.w - 480) / 2,
+        y: mon.y + (mon.h - 620) / 2,
+        width: 480,
+        height: 620,
+        route: 'automation',
+      })
+    } catch (e) {
+      console.error('[Settings] open automation failed:', e)
     }
-    void persistSchedules([...schedules, entry])
-    setAutoName('')
-    setAutoInstr('')
-  }, [autoName, autoAt, autoInstr, schedules, persistSchedules])
+  }, [])
 
   // ── Load config + user name on first open ──────────────────────────────────
   useEffect(() => {
@@ -587,75 +577,21 @@ export function SidecatSettings({ isOpen, onClose }: SidecatSettingsProps) {
               : '클릭하면 채팅창이 열려요'}
           </p>
 
-          {/* ── Automation schedules ────────────────────────────────────────── */}
+          {/* ── Automation — opens the dedicated macro panel ────────────────── */}
           <div style={styles.divider} />
-          <label style={styles.label}>자동화 — 매일 정해진 시각에 실행</label>
-          {schedules.length === 0 && (
-            <p style={styles.autoHint}>
-              등록된 작업 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼
-            </p>
-          )}
-          {schedules.map((s) => (
-            <div key={s.id} style={styles.autoRow}>
-              <input
-                type="checkbox"
-                checked={s.enabled}
-                onChange={() =>
-                  void persistSchedules(
-                    schedules.map((x) => (x.id === s.id ? { ...x, enabled: !x.enabled } : x))
-                  )
-                }
-                title={s.enabled ? '끄기' : '켜기'}
-              />
-              <span style={styles.autoName} title={s.instruction}>
-                {s.at} {s.name}
-                {s.lastError ? ' ⚠' : ''}
-              </span>
-              <button
-                style={styles.autoDel}
-                onClick={() => void persistSchedules(schedules.filter((x) => x.id !== s.id))}
-                title="삭제"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <div style={styles.autoRow}>
-            <input
-              style={{ ...styles.input, width: 52, flex: 'none' }}
-              type="text"
-              value={autoAt}
-              onChange={(e) => setAutoAt(e.target.value)}
-              placeholder="08:00"
-              title="시각 (HH:MM)"
-            />
-            <input
-              style={{ ...styles.input, flex: 1 }}
-              type="text"
-              value={autoName}
-              onChange={(e) => setAutoName(e.target.value)}
-              placeholder="작업 이름"
-            />
-          </div>
-          <div style={styles.autoRow}>
-            <input
-              style={{ ...styles.input, flex: 1 }}
-              type="text"
-              value={autoInstr}
-              onChange={(e) => setAutoInstr(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing) return
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addSchedule()
-                }
-              }}
-              placeholder="할 일 (예: 뉴스 헤드라인 정리해서 runs/에 저장)"
-            />
-            <button style={styles.autoAdd} onClick={addSchedule} title="등록">
-              +
-            </button>
-          </div>
+          <label style={styles.label}>자동화</label>
+          <p style={styles.autoHint}>
+            {schedules.length === 0
+              ? '등록된 매크로 없음 · 채팅으로 "매일 8시에 ~해줘"라고 해도 돼'
+              : `매크로 ${schedules.length}개 등록됨 · ${schedules.filter((s) => s.enabled).length}개 활성`}
+          </p>
+          <button
+            style={styles.autoAdd}
+            onClick={openAutomationPanel}
+            title="자동화 매크로 창 열기"
+          >
+            🤖 자동화 매크로 열기
+          </button>
 
           {/* ── Test button ─────────────────────────────────────────────────── */}
           <button
